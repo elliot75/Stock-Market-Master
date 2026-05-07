@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "../lib/api";
+import { useRealtimeQuotes } from "../hooks/useRealtimeQuotes";
 import {
   formatPrice,
   formatChangePercent,
@@ -23,6 +24,9 @@ export default function WatchlistsPage() {
   const [editingListId, setEditingListId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [token, setToken] = useState("");
+
+  const symbolsToPoll = selectedList?.items ? selectedList.items.map((i: any) => i.symbol) : [];
+  const { quotes, prevQuotes } = useRealtimeQuotes(symbolsToPoll, 15000);
 
   useEffect(() => {
     const t = localStorage.getItem("token");
@@ -271,7 +275,20 @@ export default function WatchlistsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {selectedList.items?.map((item: any) => (
+                    {selectedList.items?.map((item: any) => {
+                      const rtQuote = quotes[item.symbol];
+                      const prevRtQuote = prevQuotes[item.symbol];
+                      
+                      const displayPrice = rtQuote ? rtQuote.price : item.price?.close;
+                      const displayChange = rtQuote ? rtQuote.change : item.price?.change;
+                      const displayChangePercent = rtQuote ? rtQuote.changePercent : item.price?.changePercent;
+                      
+                      let flashClass = "";
+                      if (rtQuote && prevRtQuote && rtQuote.price !== prevRtQuote.price) {
+                        flashClass = rtQuote.price > prevRtQuote.price ? "flash-up" : "flash-down";
+                      }
+
+                      return (
                       <tr
                         key={item.id}
                         style={{ cursor: "pointer" }}
@@ -283,11 +300,11 @@ export default function WatchlistsPage() {
                             {item.symbol}
                           </div>
                         </td>
-                        <td className={`mono ${getPriceClass(item.price?.change)}`} style={{ textAlign: "right" }}>
-                          {formatPrice(item.price?.close)}
+                        <td className={`mono ${getPriceClass(displayChange)} ${flashClass}`} style={{ textAlign: "right" }}>
+                          {formatPrice(displayPrice)}
                         </td>
-                        <td className={`mono ${getPriceClass(item.price?.change)}`} style={{ textAlign: "right" }}>
-                          {formatChangePercent(item.price?.changePercent)}
+                        <td className={`mono ${getPriceClass(displayChange)} ${flashClass}`} style={{ textAlign: "right" }}>
+                          {formatChangePercent(displayChangePercent)}
                         </td>
                         <td style={{ textAlign: "center" }}>
                           {item.score ? (
@@ -325,7 +342,7 @@ export default function WatchlistsPage() {
                           </button>
                         </td>
                       </tr>
-                    ))}
+                    )})}
                   </tbody>
                 </table>
               )}

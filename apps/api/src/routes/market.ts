@@ -1,10 +1,20 @@
 /**
  * Market Routes - 市場總覽
  */
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import { prisma } from "@repo/database";
+import { getRealtimeQuotes } from "../services/quoteService.js";
 
 export async function marketRoutes(app: FastifyInstance) {
+  // GET /api/market/quotes?symbols=2330,2317
+  app.get("/quotes", async (req: FastifyRequest<{ Querystring: { symbols?: string } }>) => {
+    const queryStr = req.query.symbols;
+    if (!queryStr) return {};
+    
+    const symbols = queryStr.split(",").map(s => s.trim()).filter(Boolean);
+    const quotes = await getRealtimeQuotes(symbols);
+    return quotes;
+  });
   // GET /api/market/overview - 市場總覽
   app.get("/overview", async () => {
     // 取得最近交易日

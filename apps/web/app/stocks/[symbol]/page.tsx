@@ -3,6 +3,7 @@
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "../../lib/api";
+import { useRealtimeQuotes } from "../../hooks/useRealtimeQuotes";
 import {
   formatPrice,
   formatChange,
@@ -32,6 +33,8 @@ export default function StockPage({
   const [userToken, setUserToken] = useState("");
   const [watchlists, setWatchlists] = useState<any[]>([]);
   const [addingTo, setAddingTo] = useState("");
+  
+  const { quotes, prevQuotes } = useRealtimeQuotes(symbol ? [symbol] : [], 15000);
 
   useEffect(() => {
     const t = localStorage.getItem("token");
@@ -101,7 +104,19 @@ export default function StockPage({
   const scenarios = analysis?.scenarios || [];
   const fundamentals = analysis?.fundamentals;
 
-  const priceClass = getPriceClass(price?.change);
+  const rtQuote = quotes[symbol];
+  const prevRtQuote = prevQuotes[symbol];
+  
+  const displayPrice = rtQuote ? rtQuote.price : price?.close;
+  const displayChange = rtQuote ? rtQuote.change : price?.change;
+  const displayChangePercent = rtQuote ? rtQuote.changePercent : price?.changePercent;
+
+  const priceClass = getPriceClass(displayChange);
+  
+  let flashClass = "";
+  if (rtQuote && prevRtQuote && rtQuote.price !== prevRtQuote.price) {
+    flashClass = rtQuote.price > prevRtQuote.price ? "flash-up" : "flash-down";
+  }
 
   return (
     <div className="fade-in">
@@ -173,14 +188,14 @@ export default function StockPage({
           </div>
         </div>
 
-        {price && (
+        {displayPrice !== undefined && (
           <div className="stock-price-section">
-            <span className={`stock-current-price ${priceClass}`}>
-              {formatPrice(price.close)}
+            <span className={`stock-current-price ${priceClass} ${flashClass}`}>
+              {formatPrice(displayPrice)}
             </span>
-            <span className={`stock-change ${priceClass}`}>
-              {formatChange(price.change)}{" "}
-              ({formatChangePercent(price.changePercent)})
+            <span className={`stock-change ${priceClass} ${flashClass}`}>
+              {formatChange(displayChange)}{" "}
+              ({formatChangePercent(displayChangePercent)})
             </span>
           </div>
         )}

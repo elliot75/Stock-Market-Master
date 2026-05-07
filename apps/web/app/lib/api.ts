@@ -40,6 +40,13 @@ export const api = {
   getIndustries: () =>
     apiFetch<any[]>("/api/market/industries"),
 
+  getRealtimeQuotes: (symbols: string[]) => {
+    if (!symbols || symbols.length === 0) return Promise.resolve({});
+    return apiFetch<Record<string, { price: number; change: number; changePercent: number; timestamp: number }>>(
+      `/api/market/quotes?symbols=${symbols.join(",")}`
+    );
+  },
+
   // Recommendations
   getRecommendations: (params?: {
     category?: string;

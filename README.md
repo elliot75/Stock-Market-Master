@@ -145,7 +145,7 @@ docker-compose up -d
 - [x] 響應式手機介面與底部導航
 - [x] Yahoo Finance 資料回補腳本
 - [x] 自動化指標計算系統
-- [ ] 實時盤中價位對接
+- [x] 實時盤中價位對接
 - [ ] LINE / Telegram 通知整合
 
 ---

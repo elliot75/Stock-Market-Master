@@ -510,9 +510,8 @@ a:hover {
 .dashboard-grid {
   display: grid;
   grid-template-columns: 1fr 380px;
-  grid-template-rows: auto 1fr auto;
-  gap: var(--space-md);
-  height: calc(100vh - var(--header-height) - var(--space-lg) * 2);
+  gap: var(--space-xl);
+  align-items: start;
 }
 
 .dashboard-header {
@@ -521,18 +520,13 @@ a:hover {
 
 .dashboard-chart {
   grid-column: 1;
-  grid-row: 2;
-  min-height: 0;
 }
 
 .dashboard-panels {
   grid-column: 2;
-  grid-row: 2;
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
-  overflow-y: auto;
-  min-height: 0;
 }
 
 .dashboard-footer {
@@ -915,14 +909,9 @@ a:hover {
 @media (max-width: 1200px) {
   .dashboard-grid {
     grid-template-columns: 1fr;
-    height: auto;
   }
   .dashboard-panels {
     grid-column: 1;
-    grid-row: 3;
-  }
-  .dashboard-footer {
-    grid-row: 4;
   }
 }
 
@@ -1026,4 +1015,25 @@ a:hover {
     flex-wrap: wrap;
     gap: var(--space-md);
   }
+}
+
+/* ─── Real-time Animations ──────────────────── */
+@keyframes flash-up {
+  0% { background-color: transparent; }
+  20% { background-color: var(--color-up-bg); color: var(--color-up); }
+  100% { background-color: transparent; }
+}
+
+@keyframes flash-down {
+  0% { background-color: transparent; }
+  20% { background-color: var(--color-down-bg); color: var(--color-down); }
+  100% { background-color: transparent; }
+}
+
+.flash-up {
+  animation: flash-up 1.5s ease-out;
+}
+
+.flash-down {
+  animation: flash-down 1.5s ease-out;
 }
