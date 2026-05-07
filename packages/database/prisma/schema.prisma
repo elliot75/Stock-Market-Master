@@ -1,0 +1,376 @@
+// ============================================
+// 台股分析大師系統 - Prisma Schema
+// ============================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── 使用者與認證 ───────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  displayName  String?  @map("display_name")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  sessions   Session[]
+  watchlists Watchlist[]
+  alertRules AlertRule[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// ─── 股票主檔與基本面 ───────────────────────────
+
+model Stock {
+  symbol     String      @id // e.g. "2330"
+  name       String      // e.g. "台積電"
+  marketType MarketType  @map("market_type") // TWSE / TPEx
+  industry   String?     // 產業分類
+  status     StockStatus @default(ACTIVE)
+  createdAt  DateTime    @default(now()) @map("created_at")
+  updatedAt  DateTime    @updatedAt @map("updated_at")
+
+  profile              StockProfile?
+  dailyPrices          DailyPrice[]
+  monthlyRevenues      MonthlyRevenue[]
+  quarterlyFinancials  QuarterlyFinancial[]
+  dividends            Dividend[]
+  institutionalTrades  InstitutionalTradeDaily[]
+  marginShortDaily     MarginShortDaily[]
+  technicalSnapshots   TechnicalSnapshot[]
+  scoreSnapshots       ScoreSnapshot[]
+  recommendationSnapshots RecommendationSnapshot[]
+  watchlistItems       WatchlistItem[]
+  alertRules           AlertRule[]
+
+  @@map("stocks")
+}
+
+enum MarketType {
+  TWSE // 上市
+  TPEX // 上櫃
+}
+
+enum StockStatus {
+  ACTIVE
+  SUSPENDED
+  DELISTED
+}
+
+model StockProfile {
+  symbol          String   @id
+  companyName     String?  @map("company_name")
+  establishedDate DateTime? @map("established_date")
+  capital         BigInt?  // 股本 (千元)
+  chairman        String?
+  ceo             String?
+  mainProducts    String?  @map("main_products")
+  website         String?
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  stock Stock @relation(fields: [symbol], references: [symbol], onDelete: Cascade)
+
+  @@map("stock_profiles")
+}
+
+// ─── 行情資料 ──────────────────────────────────
+
+model DailyPrice {
+  symbol           String
+  date             DateTime @db.Date
+  open             Decimal  @db.Decimal(12, 2)
+  high             Decimal  @db.Decimal(12, 2)
+  low              Decimal  @db.Decimal(12, 2)
+  close            Decimal  @db.Decimal(12, 2)
+  volume           BigInt   // 成交股數
+  turnover         BigInt?  // 成交金額
+  transactionCount Int?     @map("transaction_count") // 成交筆數
+  change           Decimal? @db.Decimal(12, 2) // 漲跌
+  changePercent    Decimal? @map("change_percent") @db.Decimal(8, 4) // 漲跌幅 %
+
+  stock Stock @relation(fields: [symbol], references: [symbol], onDelete: Cascade)
+
+  @@id([symbol, date])
+  @@index([date])
+  @@map("daily_prices")
+}
+
+// ─── 基本面資料 ────────────────────────────────
+
+model MonthlyRevenue {
+  symbol         String
+  year           Int
+  month          Int
+  revenue        BigInt    // 營收 (千元)
+  revenueYoY     Decimal?  @map("revenue_yoy") @db.Decimal(10, 4) // 年增率 %
+  revenueMoM     Decimal?  @map("revenue_mom") @db.Decimal(10, 4) // 月增率 %
+  cumulativeRevenue BigInt? @map("cumulative_revenue") // 累計營收
+
+  stock Stock @relation(fields: [symbol], references: [symbol], onDelete: Cascade)
+
+  @@id([symbol, year, month])
+  @@map("monthly_revenues")
+}
+
+model QuarterlyFinancial {
+  symbol      String
+  year        Int
+  quarter     Int    // 1~4
+  eps         Decimal? @db.Decimal(10, 4)
+  grossMargin Decimal? @map("gross_margin") @db.Decimal(8, 4) // 毛利率 %
+  operatingMargin Decimal? @map("operating_margin") @db.Decimal(8, 4)
+  netMargin   Decimal? @map("net_margin") @db.Decimal(8, 4)
+  roe         Decimal? @db.Decimal(8, 4) // 股東權益報酬率 %
+  roa         Decimal? @db.Decimal(8, 4) // 總資產報酬率 %
+  debtRatio   Decimal? @map("debt_ratio") @db.Decimal(8, 4)
+
+  stock Stock @relation(fields: [symbol], references: [symbol], onDelete: Cascade)
+
+  @@id([symbol, year, quarter])
+  @@map("quarterly_financials")
+}
+
+model Dividend {
+  id             String  @id @default(cuid())
+  symbol         String
+  year           Int
+  cashDividend   Decimal? @map("cash_dividend") @db.Decimal(10, 4) // 現金股利
+  stockDividend  Decimal? @map("stock_dividend") @db.Decimal(10, 4) // 股票股利
+  exDividendDate DateTime? @map("ex_dividend_date") @db.Date
+
+  stock Stock @relation(fields: [symbol], references: [symbol], onDelete: Cascade)
+
+  @@unique([symbol, year])
+  @@map("dividends")
+}
+
+// ─── 籌碼資料 ──────────────────────────────────
+
+model InstitutionalTradeDaily {
+  symbol      String
+  date        DateTime @db.Date
+  foreignBuy  BigInt   @map("foreign_buy")  // 外資買
+  foreignSell BigInt   @map("foreign_sell") // 外資賣
+  foreignNet  BigInt   @map("foreign_net")  // 外資淨買賣
+  trustBuy    BigInt   @map("trust_buy")    // 投信買
+  trustSell   BigInt   @map("trust_sell")   // 投信賣
+  trustNet    BigInt   @map("trust_net")    // 投信淨買賣
+  dealerBuy   BigInt   @map("dealer_buy")   // 自營商買
+  dealerSell  BigInt   @map("dealer_sell")  // 自營商賣
+  dealerNet   BigInt   @map("dealer_net")   // 自營商淨買賣
+  totalNet    BigInt   @map("total_net")    // 三大法人合計
+
+  stock Stock @relation(fields: [symbol], references: [symbol], onDelete: Cascade)
+
+  @@id([symbol, date])
+  @@index([date])
+  @@map("institutional_trades_daily")
+}
+
+model MarginShortDaily {
+  symbol          String
+  date            DateTime @db.Date
+  marginBuy       BigInt?  @map("margin_buy")      // 融資買進
+  marginSell      BigInt?  @map("margin_sell")     // 融資賣出
+  marginBalance   BigInt?  @map("margin_balance")  // 融資餘額
+  shortSell       BigInt?  @map("short_sell")      // 融券賣出
+  shortBuy        BigInt?  @map("short_buy")       // 融券買進
+  shortBalance    BigInt?  @map("short_balance")   // 融券餘額
+
+  stock Stock @relation(fields: [symbol], references: [symbol], onDelete: Cascade)
+
+  @@id([symbol, date])
+  @@map("margin_short_daily")
+}
+
+// ─── 技術與分析快照 ────────────────────────────
+
+model TechnicalSnapshot {
+  symbol   String
+  date     DateTime @db.Date
+  ma5      Decimal? @db.Decimal(12, 2)
+  ma10     Decimal? @db.Decimal(12, 2)
+  ma20     Decimal? @db.Decimal(12, 2)
+  ma60     Decimal? @db.Decimal(12, 2)
+  ma120    Decimal? @db.Decimal(12, 2)
+  ma240    Decimal? @db.Decimal(12, 2)
+  rsi14    Decimal? @db.Decimal(8, 4)
+  kdK      Decimal? @map("kd_k") @db.Decimal(8, 4)
+  kdD      Decimal? @map("kd_d") @db.Decimal(8, 4)
+  macdDif  Decimal? @map("macd_dif") @db.Decimal(12, 4)
+  macdDea  Decimal? @map("macd_dea") @db.Decimal(12, 4)
+  macdHist Decimal? @map("macd_hist") @db.Decimal(12, 4)
+  bias5    Decimal? @map("bias_5") @db.Decimal(8, 4) // 5日乖離率
+  bias20   Decimal? @map("bias_20") @db.Decimal(8, 4) // 20日乖離率
+
+  stock Stock @relation(fields: [symbol], references: [symbol], onDelete: Cascade)
+
+  @@id([symbol, date])
+  @@index([date])
+  @@map("technical_snapshots")
+}
+
+model ScoreSnapshot {
+  symbol        String
+  date          DateTime @db.Date
+  qualityScore  Decimal? @map("quality_score") @db.Decimal(5, 2) // 優質股分數 0~100
+  timingScore   Decimal? @map("timing_score") @db.Decimal(5, 2)  // 進場時機分數 0~100
+  riskScore     Decimal? @map("risk_score") @db.Decimal(5, 2)    // 風險分數 0~100 (越高越危險)
+  compositeScore Decimal? @map("composite_score") @db.Decimal(5, 2) // 綜合評分
+  category      RecommendationCategory? // 推薦分類
+  analysisJson  Json?    @map("analysis_json") // 分數組成明細與文字結論
+
+  stock Stock @relation(fields: [symbol], references: [symbol], onDelete: Cascade)
+
+  @@id([symbol, date])
+  @@index([date])
+  @@index([category, date])
+  @@map("score_snapshots")
+}
+
+enum RecommendationCategory {
+  CORE_WATCH      // 核心觀察
+  PARTIAL_ENTRY   // 可分批布局
+  SHORT_TERM      // 短線觀察
+  HIGH_RISK       // 風險偏高
+}
+
+model RecommendationSnapshot {
+  id           String   @id @default(cuid())
+  symbol       String
+  date         DateTime @db.Date
+  title        String   // 推薦標題 (如: "營收創高 + 法人連買")
+  summary      String   // 推薦理由摘要
+  detailJson   Json?    @map("detail_json") // 詳細分析 JSON
+  supportPrice Decimal? @map("support_price") @db.Decimal(12, 2) // 支撐價
+  resistPrice  Decimal? @map("resist_price") @db.Decimal(12, 2)  // 壓力價
+  stopLoss     Decimal? @map("stop_loss") @db.Decimal(12, 2)     // 建議停損
+
+  stock Stock @relation(fields: [symbol], references: [symbol], onDelete: Cascade)
+
+  @@index([symbol, date])
+  @@index([date])
+  @@map("recommendation_snapshots")
+}
+
+// ─── 自選股 ────────────────────────────────────
+
+model Watchlist {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  name        String   // 清單名稱
+  description String?
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items WatchlistItem[]
+
+  @@map("watchlists")
+}
+
+model WatchlistItem {
+  id          String   @id @default(cuid())
+  watchlistId String   @map("watchlist_id")
+  symbol      String
+  addedReason String?  @map("added_reason")  // 加入原因
+  note        String?  // 備註
+  tags        Json?    // 標籤 (JSONB array)
+  addedAt     DateTime @default(now()) @map("added_at")
+
+  watchlist Watchlist @relation(fields: [watchlistId], references: [id], onDelete: Cascade)
+  stock     Stock     @relation(fields: [symbol], references: [symbol], onDelete: Cascade)
+
+  @@unique([watchlistId, symbol])
+  @@map("watchlist_items")
+}
+
+// ─── 提醒系統 ──────────────────────────────────
+
+model AlertRule {
+  id            String        @id @default(cuid())
+  userId        String        @map("user_id")
+  symbol        String
+  conditionType AlertCondition @map("condition_type")
+  threshold     Decimal?      @db.Decimal(12, 4)
+  customConfig  Json?         @map("custom_config") // 進階條件設定
+  isActive      Boolean       @default(true) @map("is_active")
+  createdAt     DateTime      @default(now()) @map("created_at")
+
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stock  Stock        @relation(fields: [symbol], references: [symbol], onDelete: Cascade)
+  events AlertEvent[]
+
+  @@map("alert_rules")
+}
+
+enum AlertCondition {
+  PRICE_ABOVE         // 股價突破
+  PRICE_BELOW         // 股價跌破
+  VOLUME_SPIKE        // 成交量異常放大
+  FOREIGN_NET_BUY     // 外資轉買
+  FOREIGN_NET_SELL    // 外資轉賣
+  TRUST_NET_BUY       // 投信轉買
+  SCORE_UPGRADE       // 評分升級
+  SCORE_DOWNGRADE     // 評分降級
+  BREAK_SUPPORT       // 跌破支撐
+  BREAK_RESISTANCE    // 突破壓力
+}
+
+model AlertEvent {
+  id          String   @id @default(cuid())
+  ruleId      String   @map("rule_id")
+  triggeredAt DateTime @default(now()) @map("triggered_at")
+  message     String
+  isRead      Boolean  @default(false) @map("is_read")
+
+  rule AlertRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@index([ruleId, triggeredAt])
+  @@map("alert_events")
+}
+
+// ─── 資料擷取紀錄 ──────────────────────────────
+
+model IngestionJob {
+  id        String          @id @default(cuid())
+  jobType   String          @map("job_type") // e.g. "sync_daily_prices"
+  status    IngestionStatus @default(PENDING)
+  startedAt DateTime?       @map("started_at")
+  endedAt   DateTime?       @map("ended_at")
+  recordCount Int?          @map("record_count")
+  errorMessage String?      @map("error_message")
+  metadata  Json?           // 額外資訊
+
+  @@index([jobType, status])
+  @@map("ingestion_jobs")
+}
+
+enum IngestionStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+}

@@ -1,0 +1,31 @@
+{
+  "name": "worker",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "check-types": "tsc --noEmit",
+    "job:sync-stocks": "tsx src/jobs/syncStockList.ts",
+    "job:sync-prices": "tsx src/jobs/syncDailyPrices.ts",
+    "job:sync-institutional": "tsx src/jobs/syncInstitutionalTrades.ts",
+    "job:calc-indicators": "tsx src/jobs/calculateIndicators.ts",
+    "job:calc-scores": "tsx src/jobs/calculateScores.ts",
+    "script:seed-yahoo": "tsx src/scripts/seedYahooHistory.ts"
+  },
+  "dependencies": {
+    "@repo/database": "*",
+    "node-cron": "^3.0.3",
+    "dotenv": "^16.5.0",
+    "undici": "^7.5.0"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "*",
+    "@types/node": "^22.15.3",
+    "@types/node-cron": "^3.0.11",
+    "tsx": "^4.19.0",
+    "typescript": "5.9.2"
+  }
+}
