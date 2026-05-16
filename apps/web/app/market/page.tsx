@@ -13,6 +13,7 @@ import {
 export default function MarketPage() {
   const router = useRouter();
   const [overview, setOverview] = useState<any>(null);
+  const [dataHealth, setDataHealth] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"volume" | "gainers" | "losers">("gainers");
 
@@ -23,8 +24,12 @@ export default function MarketPage() {
   async function loadData() {
     setLoading(true);
     try {
-      const data = await api.getMarketOverview();
+      const [data, health] = await Promise.all([
+        api.getMarketOverview(),
+        api.getDataHealth(),
+      ]);
       setOverview(data);
+      setDataHealth(health);
     } catch (err) {
       console.error(err);
     } finally {
@@ -50,6 +55,16 @@ export default function MarketPage() {
   }
 
   const { summary, topVolume, topGainers, topLosers } = overview;
+  const healthLabel: Record<string, string> = {
+    ok: "資料可用",
+    delayed: "資料延遲",
+    failed: "同步失敗",
+  };
+  const healthColor: Record<string, string> = {
+    ok: "var(--color-up)",
+    delayed: "var(--score-caution)",
+    failed: "var(--color-down)",
+  };
 
   const tabList =
     activeTab === "volume"
@@ -68,6 +83,42 @@ export default function MarketPage() {
           即時掌握大盤動態與市場氣氛
         </p>
       </div>
+
+      {dataHealth && (
+        <div className="card" style={{ marginBottom: "var(--space-xl)" }}>
+          <div className="card-header">
+            <span className="card-title">資料健康狀態</span>
+            <span style={{ color: healthColor[dataHealth.status] || "var(--text-muted)", fontWeight: 700 }}>
+              {healthLabel[dataHealth.status] || dataHealth.status}
+            </span>
+          </div>
+          <div className="card-body">
+            <div className="grid-4">
+              <div>
+                <div className="data-label">行情日</div>
+                <div className="mono">{dataHealth.latestDates?.price ? new Date(dataHealth.latestDates.price).toLocaleDateString() : "-"}</div>
+              </div>
+              <div>
+                <div className="data-label">分數日</div>
+                <div className="mono">{dataHealth.latestDates?.score ? new Date(dataHealth.latestDates.score).toLocaleDateString() : "-"}</div>
+              </div>
+              <div>
+                <div className="data-label">缺行情</div>
+                <div className="mono">{dataHealth.coverage?.missingPriceCount ?? "-"}</div>
+              </div>
+              <div>
+                <div className="data-label">缺分數</div>
+                <div className="mono">{dataHealth.coverage?.missingScoreCount ?? "-"}</div>
+              </div>
+            </div>
+            {dataHealth.jobs?.[0]?.errorMessage && (
+              <div style={{ marginTop: 12, color: "var(--color-down)", fontSize: "0.82rem" }}>
+                {dataHealth.jobs[0].jobType}: {dataHealth.jobs[0].errorMessage}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 漲跌家數統計 */}
       <div className="grid-4" style={{ marginBottom: "var(--space-xl)" }}>

@@ -5,6 +5,7 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "@repo/database";
 import { z } from "zod";
+import { getWatchlistItemOwnershipWhere } from "../lib/watchlistAuth.js";
 
 const createWatchlistSchema = z.object({
   name: z.string().min(1, "清單名稱不可為空").max(50),
@@ -30,7 +31,6 @@ export async function watchlistRoutes(app: FastifyInstance) {
 
   // GET /api/watchlists - 取得所有自選清單
   app.get("/", async (request) => {
-    // @ts-expect-error
     const userId = request.userId as string;
 
     const watchlists = await prisma.watchlist.findMany({
@@ -54,7 +54,6 @@ export async function watchlistRoutes(app: FastifyInstance) {
 
   // POST /api/watchlists - 建立新清單
   app.post("/", async (request, reply) => {
-    // @ts-expect-error
     const userId = request.userId as string;
 
     const body = createWatchlistSchema.safeParse(request.body);
@@ -78,7 +77,6 @@ export async function watchlistRoutes(app: FastifyInstance) {
 
   // GET /api/watchlists/:id - 取得清單內股票 (含最新狀態)
   app.get("/:id", async (request, reply) => {
-    // @ts-expect-error
     const userId = request.userId as string;
     const { id } = request.params as { id: string };
 
@@ -171,7 +169,6 @@ export async function watchlistRoutes(app: FastifyInstance) {
 
   // PUT /api/watchlists/:id - 更新清單名稱/描述
   app.put("/:id", async (request, reply) => {
-    // @ts-expect-error
     const userId = request.userId as string;
     const { id } = request.params as { id: string };
 
@@ -203,7 +200,6 @@ export async function watchlistRoutes(app: FastifyInstance) {
 
   // DELETE /api/watchlists/:id - 刪除清單
   app.delete("/:id", async (request, reply) => {
-    // @ts-expect-error
     const userId = request.userId as string;
     const { id } = request.params as { id: string };
 
@@ -220,7 +216,6 @@ export async function watchlistRoutes(app: FastifyInstance) {
 
   // POST /api/watchlists/:id/items - 加入股票到清單
   app.post("/:id/items", async (request, reply) => {
-    // @ts-expect-error
     const userId = request.userId as string;
     const { id } = request.params as { id: string };
 
@@ -276,7 +271,6 @@ export async function watchlistRoutes(app: FastifyInstance) {
 
   // PATCH /api/watchlists/:id/items/:itemId - 更新備註/標籤
   app.patch("/:id/items/:itemId", async (request, reply) => {
-    // @ts-expect-error
     const userId = request.userId as string;
     const { id, itemId } = request.params as { id: string; itemId: string };
 
@@ -288,12 +282,13 @@ export async function watchlistRoutes(app: FastifyInstance) {
       });
     }
 
-    // 驗證權限
-    const watchlist = await prisma.watchlist.findFirst({
-      where: { id, userId },
+    // 驗證 item 必須同時屬於此清單與目前使用者，避免已知 itemId 時越權修改。
+    const item = await prisma.watchlistItem.findFirst({
+      where: getWatchlistItemOwnershipWhere({ itemId, watchlistId: id, userId }),
+      select: { id: true },
     });
-    if (!watchlist) {
-      return reply.code(404).send({ error: "清單不存在" });
+    if (!item) {
+      return reply.code(404).send({ error: "清單項目不存在" });
     }
 
     const updated = await prisma.watchlistItem.update({
@@ -310,15 +305,15 @@ export async function watchlistRoutes(app: FastifyInstance) {
 
   // DELETE /api/watchlists/:id/items/:itemId - 從清單移除股票
   app.delete("/:id/items/:itemId", async (request, reply) => {
-    // @ts-expect-error
     const userId = request.userId as string;
     const { id, itemId } = request.params as { id: string; itemId: string };
 
-    const watchlist = await prisma.watchlist.findFirst({
-      where: { id, userId },
+    const item = await prisma.watchlistItem.findFirst({
+      where: getWatchlistItemOwnershipWhere({ itemId, watchlistId: id, userId }),
+      select: { id: true },
     });
-    if (!watchlist) {
-      return reply.code(404).send({ error: "清單不存在" });
+    if (!item) {
+      return reply.code(404).send({ error: "清單項目不存在" });
     }
 
     await prisma.watchlistItem.delete({ where: { id: itemId } });

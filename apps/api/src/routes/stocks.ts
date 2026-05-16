@@ -285,10 +285,11 @@ export async function stockRoutes(app: FastifyInstance) {
     };
 
     // ─── 組裝量能分析 ───
+    const latestRecentPrice = recentPrices[0];
     const volumeAnalysis =
-      recentPrices.length >= 2
+      recentPrices.length >= 2 && latestRecentPrice
         ? {
-            todayVolume: Number(recentPrices[0].volume),
+            todayVolume: Number(latestRecentPrice.volume),
             avgVolume5:
               recentPrices.length >= 5
                 ? Math.round(
@@ -300,7 +301,7 @@ export async function stockRoutes(app: FastifyInstance) {
             volumeChange:
               recentPrices.length >= 6
                 ? (
-                    (Number(recentPrices[0].volume) /
+                    (Number(latestRecentPrice.volume) /
                       (recentPrices
                         .slice(1, 6)
                         .reduce((s, p) => s + Number(p.volume), 0) /
@@ -464,10 +465,13 @@ interface PriceRow {
 
 function getPriceVolumeRelation(prices: PriceRow[]): string {
   if (prices.length < 2) return "資料不足";
-  const todayClose = Number(prices[0].close);
-  const prevClose = Number(prices[1].close);
-  const todayVol = Number(prices[0].volume);
-  const prevVol = Number(prices[1].volume);
+  const today = prices[0];
+  const previous = prices[1];
+  if (!today || !previous) return "資料不足";
+  const todayClose = Number(today.close);
+  const prevClose = Number(previous.close);
+  const todayVol = Number(today.volume);
+  const prevVol = Number(previous.volume);
 
   const priceUp = todayClose > prevClose;
   const volUp = todayVol > prevVol * 1.2;
@@ -503,7 +507,17 @@ function calculateKeyLevels(
 
   const recentHighs = prices.slice(0, 20).map((p) => Number(p.high));
   const recentLows = prices.slice(0, 20).map((p) => Number(p.low));
-  const latestClose = Number(prices[0].close);
+  const latest = prices[0];
+  if (!latest) {
+    return {
+      resistance1: null,
+      resistance2: null,
+      support1: null,
+      support2: null,
+      stopLoss: null,
+    };
+  }
+  const latestClose = Number(latest.close);
 
   const highestHigh = Math.max(...recentHighs);
   const lowestLow = Math.min(...recentLows);

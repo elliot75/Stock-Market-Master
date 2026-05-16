@@ -93,7 +93,6 @@ export async function authRoutes(app: FastifyInstance) {
     "/me",
     { preHandler: [app.authenticate] },
     async (request, reply) => {
-      // @ts-expect-error - 由 authenticate 注入
       const userId = request.userId as string;
 
       const user = await prisma.user.findUnique({
@@ -114,7 +113,6 @@ export async function authRoutes(app: FastifyInstance) {
     "/me",
     { preHandler: [app.authenticate] },
     async (request, reply) => {
-      // @ts-expect-error
       const userId = request.userId as string;
       const { displayName } = request.body as { displayName?: string };
 
@@ -133,7 +131,6 @@ export async function authRoutes(app: FastifyInstance) {
     "/change-password",
     { preHandler: [app.authenticate] },
     async (request, reply) => {
-      // @ts-expect-error
       const userId = request.userId as string;
       const { currentPassword, newPassword } = request.body as any;
 

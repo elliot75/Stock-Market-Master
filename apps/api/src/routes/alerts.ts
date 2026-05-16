@@ -3,7 +3,7 @@
  * 需要登入認證
  */
 import type { FastifyInstance } from "fastify";
-import { prisma } from "@repo/database";
+import { prisma, Prisma } from "@repo/database";
 import { z } from "zod";
 
 const createAlertSchema = z.object({
@@ -29,7 +29,6 @@ export async function alertRoutes(app: FastifyInstance) {
 
   // GET /api/alerts/rules - 取得所有提醒規則
   app.get("/rules", async (request) => {
-    // @ts-expect-error
     const userId = request.userId as string;
 
     const rules = await prisma.alertRule.findMany({
@@ -56,7 +55,6 @@ export async function alertRoutes(app: FastifyInstance) {
 
   // POST /api/alerts/rules - 新增提醒規則
   app.post("/rules", async (request, reply) => {
-    // @ts-expect-error
     const userId = request.userId as string;
 
     const body = createAlertSchema.safeParse(request.body);
@@ -83,7 +81,7 @@ export async function alertRoutes(app: FastifyInstance) {
         symbol: body.data.symbol,
         conditionType: body.data.conditionType,
         threshold: body.data.threshold,
-        customConfig: body.data.customConfig || undefined,
+        customConfig: body.data.customConfig as Prisma.InputJsonValue | undefined,
       },
     });
 
@@ -92,7 +90,6 @@ export async function alertRoutes(app: FastifyInstance) {
 
   // PATCH /api/alerts/rules/:ruleId - 啟用/停用規則
   app.patch("/rules/:ruleId", async (request, reply) => {
-    // @ts-expect-error
     const userId = request.userId as string;
     const { ruleId } = request.params as { ruleId: string };
     const { isActive } = request.body as { isActive?: boolean };
@@ -114,7 +111,6 @@ export async function alertRoutes(app: FastifyInstance) {
 
   // DELETE /api/alerts/rules/:ruleId - 刪除規則
   app.delete("/rules/:ruleId", async (request, reply) => {
-    // @ts-expect-error
     const userId = request.userId as string;
     const { ruleId } = request.params as { ruleId: string };
 
@@ -132,7 +128,6 @@ export async function alertRoutes(app: FastifyInstance) {
   // GET /api/alerts/events - 取得已觸發通知
   // Query: limit, offset, unreadOnly
   app.get("/events", async (request) => {
-    // @ts-expect-error
     const userId = request.userId as string;
     const query = request.query as {
       limit?: string;
@@ -186,7 +181,6 @@ export async function alertRoutes(app: FastifyInstance) {
 
   // PATCH /api/alerts/events/:eventId/read - 標記已讀
   app.patch("/events/:eventId/read", async (request, reply) => {
-    // @ts-expect-error
     const userId = request.userId as string;
     const { eventId } = request.params as { eventId: string };
 
@@ -207,7 +201,6 @@ export async function alertRoutes(app: FastifyInstance) {
 
   // POST /api/alerts/events/read-all - 全部標記已讀
   app.post("/events/read-all", async (request) => {
-    // @ts-expect-error
     const userId = request.userId as string;
 
     const result = await prisma.alertEvent.updateMany({

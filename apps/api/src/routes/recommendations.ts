@@ -3,6 +3,7 @@
  */
 import type { FastifyInstance } from "fastify";
 import { prisma } from "@repo/database";
+import { summarizeBacktest } from "../lib/backtest.js";
 
 export async function recommendationRoutes(app: FastifyInstance) {
   // GET /api/recommendations
@@ -81,17 +82,27 @@ export async function recommendationRoutes(app: FastifyInstance) {
 
     // 取得最新報價 (用 daily_prices)
     const symbols = snapshots.map((s) => s.symbol);
-    const latestPrices = await prisma.dailyPrice.findMany({
-      where: {
-        symbol: { in: symbols },
-        date: latestDate.date,
-      },
-    });
+    const [sameDatePrices, fallbackPrices] = await Promise.all([
+      prisma.dailyPrice.findMany({
+        where: {
+          symbol: { in: symbols },
+          date: latestDate.date,
+        },
+      }),
+      prisma.dailyPrice.findMany({
+        where: { symbol: { in: symbols } },
+        orderBy: { date: "desc" },
+        distinct: ["symbol"],
+      }),
+    ]);
 
-    const priceMap = new Map(latestPrices.map((p) => [p.symbol, p]));
+    const priceMap = new Map(sameDatePrices.map((p) => [p.symbol, p]));
+    const fallbackPriceMap = new Map(fallbackPrices.map((p) => [p.symbol, p]));
 
     const data = snapshots.map((s) => {
-      const price = priceMap.get(s.symbol);
+      const sameDatePrice = priceMap.get(s.symbol);
+      const fallbackPrice = fallbackPriceMap.get(s.symbol);
+      const price = sameDatePrice ?? fallbackPrice;
       return {
         symbol: s.symbol,
         name: s.stock.name,
@@ -101,6 +112,8 @@ export async function recommendationRoutes(app: FastifyInstance) {
         change: price ? Number(price.change) : null,
         changePercent: price ? Number(price.changePercent) : null,
         volume: price ? Number(price.volume) : null,
+        priceDate: price?.date ?? null,
+        priceStatus: sameDatePrice ? "ok" : price ? "stale" : "missing",
         compositeScore: Number(s.compositeScore),
         qualityScore: Number(s.qualityScore),
         timingScore: Number(s.timingScore),
@@ -147,5 +160,92 @@ export async function recommendationRoutes(app: FastifyInstance) {
     }
 
     return { date: latestDate.date, categories };
+  });
+
+  // GET /api/recommendations/backtest
+  // Query: category, horizon=5|20|60, from, to
+  app.get("/backtest", async (request, reply) => {
+    const query = request.query as {
+      category?: string;
+      horizon?: string;
+      from?: string;
+      to?: string;
+    };
+    const horizon = parseInt(query.horizon || "20", 10);
+    if (![5, 20, 60].includes(horizon)) {
+      return reply.code(400).send({ error: "horizon 僅支援 5、20、60" });
+    }
+
+    const where: Record<string, unknown> = {};
+    if (
+      query.category &&
+      ["CORE_WATCH", "PARTIAL_ENTRY", "SHORT_TERM", "HIGH_RISK"].includes(query.category)
+    ) {
+      where.category = query.category;
+    }
+
+    const dateFilter: Record<string, Date> = {};
+    if (query.from) dateFilter.gte = new Date(query.from);
+    if (query.to) dateFilter.lte = new Date(query.to);
+    if (Object.keys(dateFilter).length > 0) where.date = dateFilter;
+
+    const snapshots = await prisma.scoreSnapshot.findMany({
+      where,
+      orderBy: [{ date: "asc" }, { compositeScore: "desc" }],
+      take: 500,
+      include: { stock: { select: { name: true } } },
+    });
+
+    const trades: Array<{
+      symbol: string;
+      name: string;
+      date: Date;
+      category: string | null;
+      compositeScore: number | null;
+      entryPrice: number;
+      exitPrice: number;
+      returnPercent: number;
+      maxDrawdownPercent: number;
+    }> = [];
+
+    for (const snapshot of snapshots) {
+      const prices = await prisma.dailyPrice.findMany({
+        where: { symbol: snapshot.symbol, date: { gte: snapshot.date } },
+        orderBy: { date: "asc" },
+        take: horizon + 1,
+      });
+      if (prices.length < horizon + 1) continue;
+
+      const entry = prices[0];
+      const exit = prices[horizon];
+      if (!entry || !exit) continue;
+
+      const entryPrice = Number(entry.close);
+      const exitPrice = Number(exit.close);
+      if (entryPrice <= 0) continue;
+
+      const lowestClose = Math.min(...prices.map((price) => Number(price.close)));
+      trades.push({
+        symbol: snapshot.symbol,
+        name: snapshot.stock.name,
+        date: snapshot.date,
+        category: snapshot.category,
+        compositeScore: snapshot.compositeScore != null ? Number(snapshot.compositeScore) : null,
+        entryPrice,
+        exitPrice,
+        returnPercent: ((exitPrice - entryPrice) / entryPrice) * 100,
+        maxDrawdownPercent: ((lowestClose - entryPrice) / entryPrice) * 100,
+      });
+    }
+
+    const summary = summarizeBacktest(trades);
+
+    return {
+      meta: {
+        horizon,
+        ...summary,
+      },
+      data: trades.slice(0, 100),
+    };
   });
 }

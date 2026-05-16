@@ -22,9 +22,18 @@ export default function AlertsPage() {
   const [token, setToken] = useState("");
   const [rules, setRules] = useState<any[]>([]);
   const [events, setEvents] = useState<any[]>([]);
+  const [channels, setChannels] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newRule, setNewRule] = useState({ symbol: "", conditionType: "PRICE_ABOVE", threshold: "" });
+  const [channelForm, setChannelForm] = useState({
+    type: "TELEGRAM" as "LINE" | "TELEGRAM",
+    name: "Telegram",
+    botToken: "",
+    chatId: "",
+    channelAccessToken: "",
+    userId: "",
+  });
 
   useEffect(() => {
     const t = localStorage.getItem("token");
@@ -37,12 +46,14 @@ export default function AlertsPage() {
   async function loadData(t: string) {
     setLoading(true);
     try {
-      const [r, e] = await Promise.all([
+      const [r, e, c] = await Promise.all([
         api.getAlertRules(t),
-        api.getAlertEvents(t)
+        api.getAlertEvents(t),
+        api.getNotificationChannels(t)
       ]);
       setRules(r);
       setEvents(e.data);
+      setChannels(c);
     } catch (err) {
       console.error(err);
     } finally {
@@ -101,6 +112,35 @@ export default function AlertsPage() {
       setEvents(events.map(e => ({ ...e, isRead: true })));
     } catch (err: any) {
       alert(err.message || "標記失敗");
+    }
+  }
+
+  async function handleSaveChannel() {
+    try {
+      const config =
+        channelForm.type === "TELEGRAM"
+          ? { botToken: channelForm.botToken, chatId: channelForm.chatId }
+          : { channelAccessToken: channelForm.channelAccessToken, userId: channelForm.userId };
+      await api.saveNotificationChannel({
+        type: channelForm.type,
+        name: channelForm.name || channelForm.type,
+        isActive: true,
+        config,
+      }, token);
+      loadData(token);
+      alert("通知渠道已儲存");
+    } catch (err: any) {
+      alert(err.message || "儲存失敗");
+    }
+  }
+
+  async function handleTestChannel(channelId: string) {
+    try {
+      const result = await api.testNotificationChannel({ channelId }, token);
+      alert(result.ok ? "測試通知已送出" : result.errorMessage || "測試失敗");
+      loadData(token);
+    } catch (err: any) {
+      alert(err.message || "測試失敗");
     }
   }
 
@@ -216,6 +256,86 @@ export default function AlertsPage() {
               ))}
             </div>
           )}
+        </div>
+      </div>
+
+      <div className="card" style={{ marginTop: "var(--space-lg)" }}>
+        <div className="card-header">
+          <span className="card-title">通知渠道</span>
+        </div>
+        <div className="card-body">
+          <div className="grid-2" style={{ gap: "var(--space-lg)", alignItems: "start" }}>
+            <div>
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ display: "block", marginBottom: 4, fontSize: "0.85rem", color: "var(--text-muted)" }}>渠道類型</label>
+                <select
+                  value={channelForm.type}
+                  onChange={(e) => setChannelForm({
+                    ...channelForm,
+                    type: e.target.value as "LINE" | "TELEGRAM",
+                    name: e.target.value === "LINE" ? "LINE" : "Telegram",
+                  })}
+                  style={{ width: "100%", padding: 8, background: "var(--bg-input)", border: "1px solid var(--border-primary)", borderRadius: 4, color: "var(--text-primary)" }}
+                >
+                  <option value="TELEGRAM">Telegram</option>
+                  <option value="LINE">LINE Messaging API</option>
+                </select>
+              </div>
+              {channelForm.type === "TELEGRAM" ? (
+                <>
+                  <input
+                    placeholder="Bot Token"
+                    value={channelForm.botToken}
+                    onChange={(e) => setChannelForm({ ...channelForm, botToken: e.target.value })}
+                    style={{ width: "100%", marginBottom: 8, padding: 8, background: "var(--bg-input)", border: "1px solid var(--border-primary)", borderRadius: 4, color: "var(--text-primary)" }}
+                  />
+                  <input
+                    placeholder="Chat ID"
+                    value={channelForm.chatId}
+                    onChange={(e) => setChannelForm({ ...channelForm, chatId: e.target.value })}
+                    style={{ width: "100%", marginBottom: 12, padding: 8, background: "var(--bg-input)", border: "1px solid var(--border-primary)", borderRadius: 4, color: "var(--text-primary)" }}
+                  />
+                </>
+              ) : (
+                <>
+                  <input
+                    placeholder="Channel Access Token"
+                    value={channelForm.channelAccessToken}
+                    onChange={(e) => setChannelForm({ ...channelForm, channelAccessToken: e.target.value })}
+                    style={{ width: "100%", marginBottom: 8, padding: 8, background: "var(--bg-input)", border: "1px solid var(--border-primary)", borderRadius: 4, color: "var(--text-primary)" }}
+                  />
+                  <input
+                    placeholder="User ID"
+                    value={channelForm.userId}
+                    onChange={(e) => setChannelForm({ ...channelForm, userId: e.target.value })}
+                    style={{ width: "100%", marginBottom: 12, padding: 8, background: "var(--bg-input)", border: "1px solid var(--border-primary)", borderRadius: 4, color: "var(--text-primary)" }}
+                  />
+                </>
+              )}
+              <button className="btn btn-primary" onClick={handleSaveChannel}>儲存渠道</button>
+            </div>
+            <div>
+              {channels.length === 0 ? (
+                <div className="empty-state"><p>尚未設定通知渠道</p></div>
+              ) : (
+                <table className="data-table">
+                  <tbody>
+                    {channels.map((channel) => (
+                      <tr key={channel.id}>
+                        <td>
+                          <div style={{ fontWeight: 600 }}>{channel.name}</div>
+                          <div style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>{channel.type}</div>
+                        </td>
+                        <td style={{ textAlign: "right" }}>
+                          <button className="btn btn-sm btn-outline" onClick={() => handleTestChannel(channel.id)}>測試</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 

@@ -11,12 +11,14 @@ const NAV_ITEMS = [
       { href: "/", label: "今日推薦", icon: "🏠" },
       { href: "/market", label: "市場總覽", icon: "📊" },
       { href: "/screener", label: "條件選股", icon: "🔍" },
+      { href: "/backtest", label: "推薦回測", icon: "📈" },
     ],
   },
   {
     section: "個人功能",
     items: [
       { href: "/watchlists", label: "自選股", icon: "⭐" },
+      { href: "/portfolio", label: "持倉追蹤", icon: "💼" },
       { href: "/alerts", label: "提醒中心", icon: "🔔" },
     ],
   },

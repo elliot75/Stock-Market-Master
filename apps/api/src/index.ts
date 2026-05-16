@@ -10,6 +10,8 @@ import { watchlistRoutes } from "./routes/watchlists.js";
 import { alertRoutes } from "./routes/alerts.js";
 import { screenerRoutes } from "./routes/screener.js";
 import { marketRoutes } from "./routes/market.js";
+import { notificationChannelRoutes } from "./routes/notificationChannels.js";
+import { portfolioRoutes } from "./routes/portfolio.js";
 
 const app = Fastify({
   logger: {
@@ -66,6 +68,8 @@ await app.register(watchlistRoutes, { prefix: "/api/watchlists" });
 await app.register(alertRoutes, { prefix: "/api/alerts" });
 await app.register(screenerRoutes, { prefix: "/api/screener" });
 await app.register(marketRoutes, { prefix: "/api/market" });
+await app.register(notificationChannelRoutes, { prefix: "/api/notification-channels" });
+await app.register(portfolioRoutes, { prefix: "/api/portfolio" });
 
 // ─── Start ────────────────────────────────────
 

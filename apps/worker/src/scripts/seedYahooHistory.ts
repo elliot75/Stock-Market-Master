@@ -20,8 +20,7 @@ async function seedYahooHistory() {
   let successCount = 0;
   let failCount = 0;
 
-  for (let i = 0; i < stocks.length; i++) {
-    const stock = stocks[i];
+  for (const [i, stock] of stocks.entries()) {
     
     // Yahoo Finance 的台股代號後綴：上市為 .TW，上櫃為 .TWO
     const yahooSymbol = stock.marketType === "TWSE" 

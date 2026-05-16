@@ -14,9 +14,6 @@ export async function calculateScores() {
   console.log("[calculateScores] Starting...");
 
   try {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
     const stocks = await prisma.stock.findMany({
       where: { status: "ACTIVE" },
       select: { symbol: true },
@@ -27,11 +24,6 @@ export async function calculateScores() {
     let count = 0;
 
     for (const { symbol } of stocks) {
-      // 取得技術快照
-      const tech = await prisma.technicalSnapshot.findUnique({
-        where: { symbol_date: { symbol, date: today } },
-      });
-
       // 取得最新收盤價
       const latestPrice = await prisma.dailyPrice.findFirst({
         where: { symbol },
@@ -39,6 +31,12 @@ export async function calculateScores() {
       });
 
       if (!latestPrice) continue;
+      const snapshotDate = latestPrice.date;
+
+      // 取得同一交易日的技術快照，避免假日或補資料時分數與行情錯位
+      const tech = await prisma.technicalSnapshot.findUnique({
+        where: { symbol_date: { symbol, date: snapshotDate } },
+      });
 
       // 取得近 5 日法人買賣超
       const recentInstitutional = await prisma.institutionalTradeDaily.findMany(
@@ -61,8 +59,9 @@ export async function calculateScores() {
       const analysisReasons: string[] = [];
 
       // 營收年增率加分
-      if (recentRevenues.length > 0 && recentRevenues[0].revenueYoY) {
-        const yoy = Number(recentRevenues[0].revenueYoY);
+      const latestRevenue = recentRevenues[0];
+      if (latestRevenue?.revenueYoY) {
+        const yoy = Number(latestRevenue.revenueYoY);
         if (yoy > 30) {
           qualityScore += 20;
           analysisReasons.push(`營收年增 ${yoy.toFixed(1)}%，成長強勁`);
@@ -173,7 +172,7 @@ export async function calculateScores() {
       }
 
       await prisma.scoreSnapshot.upsert({
-        where: { symbol_date: { symbol, date: today } },
+        where: { symbol_date: { symbol, date: snapshotDate } },
         update: {
           qualityScore,
           timingScore,
@@ -187,7 +186,7 @@ export async function calculateScores() {
         },
         create: {
           symbol,
-          date: today,
+          date: snapshotDate,
           qualityScore,
           timingScore,
           riskScore,

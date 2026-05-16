@@ -18,7 +18,6 @@ export async function authenticate(
 ) {
   try {
     const decoded = await request.jwtVerify<JwtPayload>();
-    // @ts-expect-error - 擴充 request
     request.userId = decoded.userId;
   } catch (err) {
     reply.code(401).send({ error: "Unauthorized", message: "請先登入" });
@@ -29,6 +28,8 @@ export async function authenticate(
  * 從 request 取得已驗證的 userId
  */
 export function getUserId(request: FastifyRequest): string {
-  // @ts-expect-error - 由 authenticate middleware 注入
+  if (!request.userId) {
+    throw new Error("Authenticated userId is missing");
+  }
   return request.userId;
 }

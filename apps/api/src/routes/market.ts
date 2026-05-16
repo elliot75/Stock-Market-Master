@@ -4,6 +4,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { prisma } from "@repo/database";
 import { getRealtimeQuotes } from "../services/quoteService.js";
+import { deriveDataHealthStatus } from "../lib/dataHealth.js";
 
 export async function marketRoutes(app: FastifyInstance) {
   // GET /api/market/quotes?symbols=2330,2317
@@ -162,5 +163,88 @@ export async function marketRoutes(app: FastifyInstance) {
       .sort((a, b) => parseFloat(b.avgChangePercent) - parseFloat(a.avgChangePercent));
 
     return result;
+  });
+
+  // GET /api/market/data-health - 資料同步與缺口狀態
+  app.get("/data-health", async () => {
+    const [
+      latestPriceDate,
+      latestScoreDate,
+      latestTechDate,
+      activeStockCount,
+      recentJobs,
+    ] = await Promise.all([
+      prisma.dailyPrice.findFirst({ orderBy: { date: "desc" }, select: { date: true } }),
+      prisma.scoreSnapshot.findFirst({ orderBy: { date: "desc" }, select: { date: true } }),
+      prisma.technicalSnapshot.findFirst({ orderBy: { date: "desc" }, select: { date: true } }),
+      prisma.stock.count({ where: { status: "ACTIVE" } }),
+      prisma.ingestionJob.findMany({
+        orderBy: [{ startedAt: "desc" }, { endedAt: "desc" }],
+        take: 100,
+      }),
+    ]);
+
+    const priceDate = latestPriceDate?.date ?? null;
+    const scoreDate = latestScoreDate?.date ?? null;
+    const techDate = latestTechDate?.date ?? null;
+
+    const [priceCount, scoreCount, techCount] = await Promise.all([
+      priceDate ? prisma.dailyPrice.count({ where: { date: priceDate } }) : 0,
+      scoreDate ? prisma.scoreSnapshot.count({ where: { date: scoreDate } }) : 0,
+      techDate ? prisma.technicalSnapshot.count({ where: { date: techDate } }) : 0,
+    ]);
+
+    const latestJobs = new Map<string, (typeof recentJobs)[number]>();
+    for (const job of recentJobs) {
+      if (!latestJobs.has(job.jobType)) latestJobs.set(job.jobType, job);
+    }
+    const jobs = Array.from(latestJobs.values()).map((job) => ({
+      id: job.id,
+      jobType: job.jobType,
+      status: job.status,
+      startedAt: job.startedAt,
+      endedAt: job.endedAt,
+      recordCount: job.recordCount,
+      errorMessage: job.errorMessage,
+      metadata: job.metadata,
+    }));
+
+    const hasFailedJob = jobs.some((job) => job.status === "FAILED");
+    const hasDateMismatch =
+      !!(
+      priceDate &&
+      ((scoreDate && scoreDate.getTime() !== priceDate.getTime()) ||
+        (techDate && techDate.getTime() !== priceDate.getTime()))
+      );
+    const missingPriceCount = Math.max(activeStockCount - priceCount, 0);
+    const missingScoreCount = Math.max(activeStockCount - scoreCount, 0);
+    const missingTechCount = Math.max(activeStockCount - techCount, 0);
+
+    const status = deriveDataHealthStatus({
+      hasFailedJob,
+      hasDateMismatch,
+      missingPriceCount,
+      missingScoreCount,
+      missingTechCount,
+    });
+
+    return {
+      status,
+      latestDates: {
+        price: priceDate,
+        score: scoreDate,
+        technical: techDate,
+      },
+      coverage: {
+        activeStockCount,
+        priceCount,
+        scoreCount,
+        techCount,
+        missingPriceCount,
+        missingScoreCount,
+        missingTechCount,
+      },
+      jobs,
+    };
   });
 }

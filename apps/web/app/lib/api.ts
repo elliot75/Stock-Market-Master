@@ -40,6 +40,9 @@ export const api = {
   getIndustries: () =>
     apiFetch<any[]>("/api/market/industries"),
 
+  getDataHealth: () =>
+    apiFetch<any>("/api/market/data-health"),
+
   getRealtimeQuotes: (symbols: string[]) => {
     if (!symbols || symbols.length === 0) return Promise.resolve({});
     return apiFetch<Record<string, { price: number; change: number; changePercent: number; timestamp: number }>>(
@@ -65,6 +68,21 @@ export const api = {
 
   getRecommendationsSummary: () =>
     apiFetch<any>("/api/recommendations/summary"),
+
+  getRecommendationBacktest: (params?: {
+    category?: string;
+    horizon?: number;
+    from?: string;
+    to?: string;
+  }) => {
+    const query = new URLSearchParams();
+    if (params?.category) query.set("category", params.category);
+    if (params?.horizon) query.set("horizon", String(params.horizon));
+    if (params?.from) query.set("from", params.from);
+    if (params?.to) query.set("to", params.to);
+    const qs = query.toString();
+    return apiFetch<any>(`/api/recommendations/backtest${qs ? `?${qs}` : ""}`);
+  },
 
   // Stocks
   searchStocks: (q: string) =>
@@ -197,6 +215,74 @@ export const api = {
   markAllEventsAsRead: (token: string) =>
     apiFetch<any>("/api/alerts/events/read-all", {
       method: "POST",
+      token,
+    }),
+
+  // Notification channels
+  getNotificationChannels: (token: string) =>
+    apiFetch<any[]>("/api/notification-channels", { token }),
+
+  saveNotificationChannel: (
+    channel: { type: "LINE" | "TELEGRAM"; name: string; isActive?: boolean; config: Record<string, unknown> },
+    token: string
+  ) =>
+    apiFetch<any>("/api/notification-channels", {
+      method: "PUT",
+      token,
+      body: JSON.stringify(channel),
+    }),
+
+  testNotificationChannel: (
+    payload: { channelId?: string; type?: "LINE" | "TELEGRAM"; config?: Record<string, unknown>; message?: string },
+    token: string
+  ) =>
+    apiFetch<any>("/api/notification-channels/test", {
+      method: "POST",
+      token,
+      body: JSON.stringify(payload),
+    }),
+
+  // Portfolio
+  getHoldings: (token: string) =>
+    apiFetch<any[]>("/api/portfolio/holdings", { token }),
+
+  saveHolding: (
+    holding: {
+      symbol: string;
+      shares: number;
+      averageCost: number;
+      targetPrice?: number;
+      stopLoss?: number;
+      note?: string;
+    },
+    token: string
+  ) =>
+    apiFetch<any>("/api/portfolio/holdings", {
+      method: "POST",
+      token,
+      body: JSON.stringify(holding),
+    }),
+
+  updateHolding: (
+    id: string,
+    holding: {
+      shares?: number;
+      averageCost?: number;
+      targetPrice?: number;
+      stopLoss?: number;
+      note?: string;
+    },
+    token: string
+  ) =>
+    apiFetch<any>(`/api/portfolio/holdings/${id}`, {
+      method: "PATCH",
+      token,
+      body: JSON.stringify(holding),
+    }),
+
+  deleteHolding: (id: string, token: string) =>
+    apiFetch<any>(`/api/portfolio/holdings/${id}`, {
+      method: "DELETE",
       token,
     }),
 };
