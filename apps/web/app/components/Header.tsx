@@ -1,11 +1,14 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { api } from "../lib/api";
+
+const AUTH_CHANGE_EVENT = "stock-market-auth-change";
 
 export default function Header() {
   const router = useRouter();
+  const pathname = usePathname();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<any[]>([]);
   const [showResults, setShowResults] = useState(false);
@@ -20,23 +23,41 @@ export default function Header() {
     const checkUser = async () => {
       const token = localStorage.getItem("token");
       if (token) {
+        const cachedUser = localStorage.getItem("user");
+        if (cachedUser) {
+          try {
+            setUser(JSON.parse(cachedUser));
+          } catch {
+            localStorage.removeItem("user");
+          }
+        }
+
         try {
           const data = await api.getMe(token);
           setUser(data);
+          localStorage.setItem("user", JSON.stringify(data));
         } catch (err) {
           console.error("Failed to fetch user:", err);
-          localStorage.removeItem("token");
+          if (!cachedUser) {
+            setUser(null);
+          }
         }
+      } else {
+        setUser(null);
       }
       setIsLoaded(true);
     };
 
     checkUser();
     
-    // 監聽 storage 事件，當其他分頁登入/登出時同步
+    // storage 只會同步其他分頁；自訂事件用來同步同一分頁登入/登出。
     window.addEventListener("storage", checkUser);
-    return () => window.removeEventListener("storage", checkUser);
-  }, []);
+    window.addEventListener(AUTH_CHANGE_EVENT, checkUser);
+    return () => {
+      window.removeEventListener("storage", checkUser);
+      window.removeEventListener(AUTH_CHANGE_EVENT, checkUser);
+    };
+  }, [pathname]);
 
   useEffect(() => {
     if (query.length < 1) {
@@ -72,10 +93,11 @@ export default function Header() {
 
   const handleLogout = () => {
     localStorage.removeItem("token");
+    localStorage.removeItem("user");
     setUser(null);
     setShowProfileMenu(false);
+    window.dispatchEvent(new Event(AUTH_CHANGE_EVENT));
     router.push("/");
-    window.location.reload(); // 強制刷新確保所有元件狀態同步
   };
 
   return (

@@ -28,6 +28,7 @@ export default function LoginPage() {
 
       localStorage.setItem("token", result.token);
       localStorage.setItem("user", JSON.stringify(result.user));
+      window.dispatchEvent(new Event("stock-market-auth-change"));
       router.push("/");
     } catch (err: any) {
       setError(err.message || "操作失敗");
