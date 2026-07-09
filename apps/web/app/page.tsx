@@ -1,19 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "./lib/api";
 import {
   formatPrice,
-  formatChange,
   formatChangePercent,
-  formatVolume,
   getPriceClass,
   getCategoryLabel,
   getCategoryBadgeClass,
   getScoreColor,
 } from "./lib/format";
-import ScoreGauge from "./components/ScoreGauge";
 
 const CATEGORIES = [
   { key: "", label: "全部" },
@@ -38,11 +35,7 @@ export default function HomePage() {
   const [category, setCategory] = useState("");
   const [sort, setSort] = useState("composite");
 
-  useEffect(() => {
-    loadData();
-  }, [category, sort]);
-
-  async function loadData() {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const [recData, sumData] = await Promise.all([
@@ -60,7 +53,11 @@ export default function HomePage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [category, sort]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   return (
     <div className="fade-in">

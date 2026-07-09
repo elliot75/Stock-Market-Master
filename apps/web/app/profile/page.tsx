@@ -36,7 +36,7 @@ export default function ProfilePage() {
         localStorage.removeItem("token");
         router.push("/login");
       });
-  }, []);
+  }, [router]);
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();

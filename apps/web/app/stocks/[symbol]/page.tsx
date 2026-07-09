@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useCallback, useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "../../lib/api";
 import { useRealtimeQuotes } from "../../hooks/useRealtimeQuotes";
@@ -12,7 +12,6 @@ import {
   getPriceClass,
   getCategoryLabel,
   getCategoryBadgeClass,
-  getScoreColor,
   formatDate,
 } from "../../lib/format";
 import KLineChart from "../../components/KLineChart";
@@ -36,29 +35,7 @@ export default function StockPage({
   
   const { quotes, prevQuotes } = useRealtimeQuotes(symbol ? [symbol] : [], 15000);
 
-  useEffect(() => {
-    const t = localStorage.getItem("token");
-    if (t) {
-      setUserToken(t);
-      api.getWatchlists(t).then(setWatchlists).catch(console.error);
-    }
-    loadData();
-  }, [symbol]);
-
-  async function handleAddWatchlist(watchlistId: string) {
-    if (!userToken) return alert("請先登入");
-    setAddingTo(watchlistId);
-    try {
-      await api.addToWatchlist(watchlistId, symbol, userToken);
-      alert("已加入自選股！");
-    } catch (err: any) {
-      alert(err.message || "加入失敗");
-    } finally {
-      setAddingTo("");
-    }
-  }
-
-  async function loadData() {
+  const loadData = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
@@ -74,6 +51,28 @@ export default function StockPage({
       setError(err.message || "載入失敗");
     } finally {
       setLoading(false);
+    }
+  }, [symbol]);
+
+  useEffect(() => {
+    const t = localStorage.getItem("token");
+    if (t) {
+      setUserToken(t);
+      api.getWatchlists(t).then(setWatchlists).catch(console.error);
+    }
+    loadData();
+  }, [loadData]);
+
+  async function handleAddWatchlist(watchlistId: string) {
+    if (!userToken) return alert("請先登入");
+    setAddingTo(watchlistId);
+    try {
+      await api.addToWatchlist(watchlistId, symbol, userToken);
+      alert("已加入自選股！");
+    } catch (err: any) {
+      alert(err.message || "加入失敗");
+    } finally {
+      setAddingTo("");
     }
   }
 

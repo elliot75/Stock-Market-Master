@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "@repo/database";
 import { z } from "zod";
-import { calculateHoldingMetrics } from "../lib/portfolioMetrics.js";
+import { calculateHoldingMetrics, summarizePortfolioReview } from "../lib/portfolioMetrics.js";
 
 const holdingSchema = z.object({
   symbol: z.string().min(1),
@@ -59,6 +59,41 @@ export async function portfolioRoutes(app: FastifyInstance) {
         updatedAt: holding.updatedAt,
       };
     });
+  });
+
+  app.get("/summary", async (request) => {
+    const userId = request.userId as string;
+    const holdings = await prisma.portfolioHolding.findMany({
+      where: { userId },
+      include: {
+        stock: { select: { industry: true } },
+      },
+    });
+
+    const symbols = holdings.map((holding) => holding.symbol);
+    const latestPrices = await prisma.dailyPrice.findMany({
+      where: { symbol: { in: symbols } },
+      orderBy: { date: "desc" },
+      distinct: ["symbol"],
+    });
+    const priceMap = new Map(latestPrices.map((price) => [price.symbol, price]));
+
+    return summarizePortfolioReview(
+      holdings.map((holding) => {
+        const latestPrice = priceMap.get(holding.symbol);
+        const close = latestPrice ? Number(latestPrice.close) : null;
+        const metrics = calculateHoldingMetrics({
+          shares: Number(holding.shares),
+          averageCost: Number(holding.averageCost),
+          latestPrice: close,
+        });
+        return {
+          symbol: holding.symbol,
+          industry: holding.stock.industry,
+          marketValue: metrics.marketValue,
+        };
+      })
+    );
   });
 
   app.post("/holdings", async (request, reply) => {

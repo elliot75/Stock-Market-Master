@@ -6,7 +6,6 @@ import { api } from "../lib/api";
 import {
   formatPrice,
   formatChangePercent,
-  formatVolume,
   getPriceClass,
   getCategoryLabel,
   getCategoryBadgeClass,

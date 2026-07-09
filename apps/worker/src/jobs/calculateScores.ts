@@ -8,7 +8,18 @@
  * 2. 進場時機分數 (timing_score) - 技術面為主
  * 3. 風險分數 (risk_score) - 風險評估
  */
-import { prisma, type RecommendationCategory } from "@repo/database";
+import { Prisma, prisma, type RecommendationCategory } from "@repo/database";
+import {
+  calculateMarketCap,
+  calculateValuation,
+  deriveTaiwanSharesFromCapitalThousand,
+} from "../lib/financialRigor.js";
+import { formatSharesAsLots } from "../lib/marketUnits.js";
+import { evaluateAvailableQualityScreen } from "../lib/qualityScreen.js";
+
+function toJsonValue(value: unknown): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+}
 
 export async function calculateScores() {
   console.log("[calculateScores] Starting...");
@@ -16,14 +27,18 @@ export async function calculateScores() {
   try {
     const stocks = await prisma.stock.findMany({
       where: { status: "ACTIVE" },
-      select: { symbol: true },
+      select: {
+        symbol: true,
+        profile: { select: { capital: true } },
+      },
     });
 
     console.log(`[calculateScores] Processing ${stocks.length} stocks...`);
 
     let count = 0;
 
-    for (const { symbol } of stocks) {
+    for (const stock of stocks) {
+      const { symbol } = stock;
       // 取得最新收盤價
       const latestPrice = await prisma.dailyPrice.findFirst({
         where: { symbol },
@@ -54,6 +69,12 @@ export async function calculateScores() {
         take: 3,
       });
 
+      // 取得最近一季財務資料，作為估值輔助資訊
+      const latestFinancial = await prisma.quarterlyFinancial.findFirst({
+        where: { symbol },
+        orderBy: [{ year: "desc" }, { quarter: "desc" }],
+      });
+
       // ─── 1. 優質股分數 (基本面) ───
       let qualityScore = 50; // 基準分
       const analysisReasons: string[] = [];
@@ -72,6 +93,17 @@ export async function calculateScores() {
           qualityScore -= 10;
           analysisReasons.push(`營收年增 ${yoy.toFixed(1)}%，衰退`);
         }
+      }
+
+      const qualityScreen = evaluateAvailableQualityScreen(latestFinancial);
+      if (qualityScreen.verdict === "pass") {
+        qualityScore += 10;
+        analysisReasons.push(qualityScreen.summary);
+      } else if (qualityScreen.verdict === "fail") {
+        qualityScore -= 15;
+        analysisReasons.push(qualityScreen.summary);
+      } else if (qualityScreen.unknownCount < qualityScreen.checks.length) {
+        analysisReasons.push(qualityScreen.summary);
       }
 
       // ─── 2. 進場時機分數 (技術面) ───
@@ -125,12 +157,12 @@ export async function calculateScores() {
         if (totalForeignNet > 0) {
           timingScore += 10;
           analysisReasons.push(
-            `外資近 ${recentInstitutional.length} 日淨買 ${totalForeignNet} 張`
+            `外資近 ${recentInstitutional.length} 日淨買 ${formatSharesAsLots(totalForeignNet)}`
           );
         } else if (totalForeignNet < 0) {
           timingScore -= 5;
           analysisReasons.push(
-            `外資近 ${recentInstitutional.length} 日淨賣 ${Math.abs(totalForeignNet)} 張`
+            `外資近 ${recentInstitutional.length} 日淨賣 ${formatSharesAsLots(Math.abs(totalForeignNet))}`
           );
         }
       }
@@ -148,6 +180,10 @@ export async function calculateScores() {
           riskScore += 10;
           analysisReasons.push(`20日乖離率 ${bias.toFixed(1)}%`);
         }
+      }
+
+      if (qualityScreen.verdict === "fail") {
+        riskScore += 10;
       }
 
       // 限制分數範圍 0~100
@@ -171,6 +207,55 @@ export async function calculateScores() {
         category = "HIGH_RISK";
       }
 
+      const financialRigor: Record<string, Prisma.InputJsonValue> = {};
+
+      if (stock.profile?.capital) {
+        const shares = deriveTaiwanSharesFromCapitalThousand(stock.profile.capital);
+        const marketCap = calculateMarketCap({
+          price: Number(latestPrice.close),
+          shares,
+        });
+        financialRigor.marketCap = {
+          method: "capital_thousand_ntd / par_value_10",
+          capitalThousandNtd: Number(stock.profile.capital),
+          estimatedShares: Number(shares),
+          estimatedMarketCap: Math.round(marketCap.marketCap),
+          estimatedMarketCapHundredMillion: Number(
+            marketCap.marketCapHundredMillion.toFixed(2)
+          ),
+        } satisfies Prisma.InputJsonObject;
+        analysisReasons.push(
+          `市值驗算：依股本推算約 ${marketCap.marketCapHundredMillion.toFixed(1)} 億元`
+        );
+      }
+
+      if (latestFinancial?.eps && Number(latestFinancial.eps) > 0) {
+        const annualizedEps = Number(latestFinancial.eps) * 4;
+        const valuation = calculateValuation({
+          price: Number(latestPrice.close),
+          eps: annualizedEps,
+        });
+        financialRigor.valuation = {
+          epsSource: `${latestFinancial.year}Q${latestFinancial.quarter}`,
+          annualizedEps: Number(annualizedEps.toFixed(4)),
+          peAnnualized: valuation.pe,
+          note: "PE uses latest quarterly EPS annualized; use TTM EPS when available.",
+        } satisfies Prisma.InputJsonObject;
+        if (valuation.pe != null) {
+          analysisReasons.push(
+            `估值驗算：最新季 EPS 年化本益比約 ${valuation.pe.toFixed(1)}x`
+          );
+        }
+      }
+
+      const analysisJson: Prisma.InputJsonObject = {
+        reasons: analysisReasons,
+        qualityScreen: toJsonValue(qualityScreen),
+        financialRigor:
+          Object.keys(financialRigor).length > 0 ? financialRigor : null,
+        generatedAt: new Date().toISOString(),
+      };
+
       await prisma.scoreSnapshot.upsert({
         where: { symbol_date: { symbol, date: snapshotDate } },
         update: {
@@ -179,10 +264,7 @@ export async function calculateScores() {
           riskScore,
           compositeScore,
           category,
-          analysisJson: {
-            reasons: analysisReasons,
-            generatedAt: new Date().toISOString(),
-          },
+          analysisJson,
         },
         create: {
           symbol,
@@ -192,10 +274,7 @@ export async function calculateScores() {
           riskScore,
           compositeScore,
           category,
-          analysisJson: {
-            reasons: analysisReasons,
-            generatedAt: new Date().toISOString(),
-          },
+          analysisJson,
         },
       });
 

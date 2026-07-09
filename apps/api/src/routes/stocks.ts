@@ -3,6 +3,7 @@
  */
 import type { FastifyInstance } from "fastify";
 import { prisma } from "@repo/database";
+import { getMacdSignal } from "../lib/technicalSignals.js";
 
 export async function stockRoutes(app: FastifyInstance) {
   // GET /api/stocks/:symbol/overview
@@ -441,20 +442,6 @@ function getKdSignal(tech: { kdK: unknown; kdD: unknown }): string {
   if (k < 20 && d < 20) return "低檔超賣";
   if (k > d) return "K 上穿 D (偏多)";
   if (k < d) return "K 下穿 D (偏空)";
-  return "中性";
-}
-
-function getMacdSignal(tech: {
-  macdDif: unknown;
-  macdDea: unknown;
-  macdHist: unknown;
-}): string {
-  const dif = Number(tech.macdDif || 0);
-  const hist = Number(tech.macdHist || 0);
-  if (dif > 0 && hist > 0) return "多頭縮減";
-  if (dif > 0 && hist < 0) return "多頭擴張";
-  if (dif < 0 && hist < 0) return "空頭擴張";
-  if (dif < 0 && hist > 0) return "空頭縮減";
   return "中性";
 }
 

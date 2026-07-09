@@ -1,4 +1,5 @@
 import type { AlertCondition } from "@repo/database";
+import { formatSharesAsLots } from "./marketUnits.js";
 
 interface AlertRuleInput {
   conditionType: AlertCondition;
@@ -79,13 +80,13 @@ export function evaluateAlertRule(input: AlertEvaluationInput): AlertEvaluationR
       if (!current || !previous) break;
 
       if (rule.conditionType === "FOREIGN_NET_BUY" && current.foreignNet > 0 && previous.foreignNet <= 0) {
-        return { triggered: true, message: `${label} 外資由賣轉買，今日淨買 ${current.foreignNet} 張` };
+        return { triggered: true, message: `${label} 外資由賣轉買，今日淨買 ${formatSharesAsLots(current.foreignNet)}` };
       }
       if (rule.conditionType === "FOREIGN_NET_SELL" && current.foreignNet < 0 && previous.foreignNet >= 0) {
-        return { triggered: true, message: `${label} 外資由買轉賣，今日淨賣 ${Math.abs(current.foreignNet)} 張` };
+        return { triggered: true, message: `${label} 外資由買轉賣，今日淨賣 ${formatSharesAsLots(Math.abs(current.foreignNet))}` };
       }
       if (rule.conditionType === "TRUST_NET_BUY" && current.trustNet > 0 && previous.trustNet <= 0) {
-        return { triggered: true, message: `${label} 投信由賣轉買，今日淨買 ${current.trustNet} 張` };
+        return { triggered: true, message: `${label} 投信由賣轉買，今日淨買 ${formatSharesAsLots(current.trustNet)}` };
       }
       break;
     }

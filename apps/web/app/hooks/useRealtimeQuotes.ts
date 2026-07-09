@@ -14,9 +14,11 @@ export function useRealtimeQuotes(symbols: string[], intervalMs = 5000) {
   const [quotes, setQuotes] = useState<Record<string, Quote>>({});
   const [loading, setLoading] = useState(true);
   const prevQuotesRef = useRef<Record<string, Quote>>({});
+  const symbolsKey = symbols.join(",");
 
   useEffect(() => {
-    if (symbols.length === 0) {
+    const currentSymbols = symbolsKey ? symbolsKey.split(",") : [];
+    if (currentSymbols.length === 0) {
       setQuotes({});
       setLoading(false);
       return;
@@ -26,8 +28,8 @@ export function useRealtimeQuotes(symbols: string[], intervalMs = 5000) {
 
     const fetchQuotes = async () => {
       try {
-        console.log(`[useRealtimeQuotes] Polling for: ${symbols.join(",")}`);
-        const data = await api.getRealtimeQuotes(symbols);
+        console.log(`[useRealtimeQuotes] Polling for: ${symbolsKey}`);
+        const data = await api.getRealtimeQuotes(currentSymbols);
         if (!isMounted) return;
 
         // 將當前報價存入 ref，然後更新 state，這樣元件在下次渲染時就能比對出價差
@@ -53,7 +55,7 @@ export function useRealtimeQuotes(symbols: string[], intervalMs = 5000) {
       isMounted = false;
       clearInterval(intervalId);
     };
-  }, [symbols.join(","), intervalMs]);
+  }, [symbolsKey, intervalMs]);
 
   return { quotes, loading, prevQuotes: prevQuotesRef.current };
 }

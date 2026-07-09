@@ -54,4 +54,10 @@ export const nextJsConfig = [
       "react/react-in-jsx-scope": "off",
     },
   },
+  {
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
+      "react/no-unknown-property": ["error", { ignore: ["jsx", "global"] }],
+    },
+  },
 ];

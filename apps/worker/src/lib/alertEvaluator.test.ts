@@ -32,8 +32,11 @@ describe("evaluateAlertRule", () => {
       evaluateAlertRule({
         ...base,
         rule: { conditionType: "FOREIGN_NET_BUY", threshold: null },
-      }).triggered
-    ).toBe(true);
+      })
+    ).toMatchObject({
+      triggered: true,
+      message: "台積電(2330) 外資由賣轉買，今日淨買 0.1 張",
+    });
   });
 
   it("triggers support and resistance alerts", () => {

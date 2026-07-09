@@ -17,6 +17,7 @@ export default function PortfolioPage() {
   const router = useRouter();
   const [token, setToken] = useState("");
   const [holdings, setHoldings] = useState<any[]>([]);
+  const [summary, setSummary] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({
     symbol: "",
@@ -40,7 +41,12 @@ export default function PortfolioPage() {
   async function loadHoldings(t: string) {
     setLoading(true);
     try {
-      setHoldings(await api.getHoldings(t));
+      const [holdingData, summaryData] = await Promise.all([
+        api.getHoldings(t),
+        api.getPortfolioSummary(t),
+      ]);
+      setHoldings(holdingData);
+      setSummary(summaryData);
     } catch (err) {
       console.error(err);
     } finally {
@@ -122,6 +128,43 @@ export default function PortfolioPage() {
           <div className={`data-value lg ${getPriceClass(totalPnlPercent)}`}>{formatChangePercent(totalPnlPercent)}</div>
         </div>
       </div>
+
+      {summary && summary.valuedHoldingCount > 0 && (
+        <div className="grid-4" style={{ marginBottom: "var(--space-xl)" }}>
+          <div className="stat-card">
+            <div className="data-label">集中度</div>
+            <div className="data-value lg">
+              {summary.concentrationLevel === "high"
+                ? "偏高"
+                : summary.concentrationLevel === "medium"
+                  ? "中等"
+                  : "分散"}
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="data-label">第一大持倉</div>
+            <div className="data-value lg">{formatChangePercent(summary.topHoldingPercent)}</div>
+            <div style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
+              {summary.topHolding?.symbol || "-"}
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="data-label">前三大占比</div>
+            <div className="data-value lg">{formatChangePercent(summary.topThreePercent)}</div>
+          </div>
+          <div className="stat-card">
+            <div className="data-label">最大產業曝險</div>
+            <div className="data-value lg">
+              {summary.industryExposure?.[0]
+                ? formatChangePercent(summary.industryExposure[0].percent)
+                : "-"}
+            </div>
+            <div style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
+              {summary.industryExposure?.[0]?.industry || "-"}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid-2" style={{ gap: "var(--space-lg)", alignItems: "start" }}>
         <div className="card">

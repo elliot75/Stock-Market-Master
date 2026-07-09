@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "../lib/api";
 import { useRealtimeQuotes } from "../hooks/useRealtimeQuotes";
@@ -28,6 +28,27 @@ export default function WatchlistsPage() {
   const symbolsToPoll = selectedList?.items ? selectedList.items.map((i: any) => i.symbol) : [];
   const { quotes, prevQuotes } = useRealtimeQuotes(symbolsToPoll, 15000);
 
+  const loadWatchlists = useCallback(async (t: string) => {
+    setLoading(true);
+    try {
+      const lists = await api.getWatchlists(t);
+      setWatchlists(lists);
+      if (lists.length > 0) {
+        const detail = await api.getWatchlist(lists[0].id, t);
+        const listIds = new Set(lists.map((list: any) => list.id));
+        setSelectedList((current: any) =>
+          current && listIds.has(current.id) ? current : detail
+        );
+      } else {
+        setSelectedList(null);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     const t = localStorage.getItem("token");
     if (t) {
@@ -36,23 +57,7 @@ export default function WatchlistsPage() {
     } else {
       setLoading(false);
     }
-  }, []);
-
-  async function loadWatchlists(t: string) {
-    setLoading(true);
-    try {
-      const lists = await api.getWatchlists(t);
-      setWatchlists(lists);
-      if (lists.length > 0 && !selectedList) {
-        const detail = await api.getWatchlist(lists[0].id, t);
-        setSelectedList(detail);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }
+  }, [loadWatchlists]);
 
   async function handleCreateList() {
     if (!newName.trim() || !token) return;

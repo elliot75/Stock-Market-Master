@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { formatPrice, formatChangePercent, getCategoryLabel, getPriceClass } from "../lib/format";
 
@@ -10,11 +10,7 @@ export default function BacktestPage() {
   const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadData();
-  }, [category, horizon]);
-
-  async function loadData() {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       setResult(await api.getRecommendationBacktest({
@@ -26,7 +22,11 @@ export default function BacktestPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [category, horizon]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const meta = result?.meta;
 

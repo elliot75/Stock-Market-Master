@@ -246,6 +246,9 @@ export const api = {
   getHoldings: (token: string) =>
     apiFetch<any[]>("/api/portfolio/holdings", { token }),
 
+  getPortfolioSummary: (token: string) =>
+    apiFetch<any>("/api/portfolio/summary", { token }),
+
   saveHolding: (
     holding: {
       symbol: string;
