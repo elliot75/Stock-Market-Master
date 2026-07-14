@@ -79,4 +79,18 @@ cron.schedule(
   { timezone: TZ }
 );
 
+// 盤中價位型提醒：每 5 分鐘，09:00–13:35（台北時間）
+for (const expression of ["*/5 9-12 * * 1-5", "0,5,10,15,20,25,30,35 13 * * 1-5"]) {
+  cron.schedule(expression, async () => {
+    const { checkIntradayAlerts } = await import("./jobs/checkIntradayAlerts.js");
+    await checkIntradayAlerts();
+  }, { timezone: TZ });
+}
+
+// 清除超過保留期限的私人 AI 對話與不再使用的報告
+cron.schedule("30 2 * * *", async () => {
+  const { cleanupAiData } = await import("./jobs/cleanupAiData.js");
+  await cleanupAiData();
+}, { timezone: TZ });
+
 console.log("✅ All cron jobs scheduled (Mon-Fri, Asia/Taipei)");

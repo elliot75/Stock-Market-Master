@@ -26,6 +26,8 @@ model User {
   alertRules AlertRule[]
   notificationChannels NotificationChannel[]
   portfolioHoldings PortfolioHolding[]
+  aiConversations AiConversation[]
+  aiUsageEvents AiUsageEvent[]
 
   @@map("users")
 }
@@ -66,6 +68,8 @@ model Stock {
   watchlistItems       WatchlistItem[]
   alertRules           AlertRule[]
   portfolioHoldings    PortfolioHolding[]
+  aiAnalyses           AiStockAnalysis[]
+  aiConversations      AiConversation[]
 
   @@map("stocks")
 }
@@ -347,6 +351,7 @@ model AlertEvent {
   ruleId      String   @map("rule_id")
   triggeredAt DateTime @default(now()) @map("triggered_at")
   message     String
+  metadata    Json?
   isRead      Boolean  @default(false) @map("is_read")
 
   rule AlertRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
@@ -372,7 +377,7 @@ model NotificationChannel {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   deliveryAttempts AlertDeliveryAttempt[]
 
-  @@index([userId, type])
+  @@unique([userId, type])
   @@map("notification_channels")
 }
 
@@ -403,6 +408,85 @@ enum NotificationDeliveryStatus {
   PENDING
   SENT
   FAILED
+}
+
+// ─── AI 個股分析 ───────────────────────────────
+
+model AiStockAnalysis {
+  id                String   @id @default(cuid())
+  symbol            String
+  provider          String
+  model             String
+  sourceDate        DateTime @db.Date @map("source_date")
+  sourceFingerprint String   @map("source_fingerprint")
+  promptVersion     Int      @default(1) @map("prompt_version")
+  contentJson       Json     @map("content_json")
+  usageJson         Json?    @map("usage_json")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  stock         Stock            @relation(fields: [symbol], references: [symbol], onDelete: Cascade)
+  conversations AiConversation[]
+
+  @@index([symbol, provider, model, sourceFingerprint, promptVersion, createdAt])
+  @@map("ai_stock_analyses")
+}
+
+model AiConversation {
+  id             String   @id @default(cuid())
+  userId         String   @map("user_id")
+  symbol         String
+  analysisId     String   @map("analysis_id")
+  provider       String
+  model          String
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  lastActiveAt   DateTime @default(now()) @map("last_active_at")
+
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stock    Stock           @relation(fields: [symbol], references: [symbol], onDelete: Cascade)
+  analysis AiStockAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  messages AiMessage[]
+
+  @@index([userId, symbol, lastActiveAt])
+  @@map("ai_conversations")
+}
+
+enum AiMessageRole {
+  USER
+  ASSISTANT
+}
+
+model AiMessage {
+  id             String        @id @default(cuid())
+  conversationId String        @map("conversation_id")
+  role           AiMessageRole
+  content        String        @db.Text
+  usageJson      Json?         @map("usage_json")
+  createdAt      DateTime      @default(now()) @map("created_at")
+
+  conversation AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("ai_messages")
+}
+
+enum AiUsageKind {
+  REPORT
+  FOLLOW_UP
+}
+
+model AiUsageEvent {
+  id        String      @id @default(cuid())
+  userId    String      @map("user_id")
+  provider  String
+  kind      AiUsageKind
+  cacheHit  Boolean     @default(false) @map("cache_hit")
+  createdAt DateTime    @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("ai_usage_events")
 }
 
 // ─── 投資組合 ──────────────────────────────────

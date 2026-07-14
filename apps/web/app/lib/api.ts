@@ -1,4 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 interface FetchOptions extends RequestInit {
   token?: string;
@@ -24,9 +24,10 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
 
   if (!res.ok) {
     const error = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(error.error || error.message || `API Error ${res.status}`);
+    throw new Error([error.error || error.message || `API Error ${res.status}`, error.hint].filter(Boolean).join("\n"));
   }
 
+  if (res.status === 204) return undefined as T;
   return res.json();
 }
 
@@ -241,6 +242,40 @@ export const api = {
       token,
       body: JSON.stringify(payload),
     }),
+
+  updateNotificationChannel: (id: string, isActive: boolean, token: string) =>
+    apiFetch<any>(`/api/notification-channels/${id}`, {
+      method: "PATCH",
+      token,
+      body: JSON.stringify({ isActive }),
+    }),
+
+  deleteNotificationChannel: (id: string, token: string) =>
+    apiFetch<void>(`/api/notification-channels/${id}`, { method: "DELETE", token }),
+
+  // AI stock analysis
+  getAiProviders: (token: string) =>
+    apiFetch<Array<{ id: string; label: string; model: string; isDefault: boolean }>>("/api/ai/providers", { token }),
+
+  generateAiAnalysis: (symbol: string, payload: { providerId?: string; forceRefresh?: boolean }, token: string) =>
+    apiFetch<any>(`/api/ai/stocks/${symbol}/analysis`, {
+      method: "POST",
+      token,
+      body: JSON.stringify(payload),
+    }),
+
+  getAiConversation: (conversationId: string, token: string) =>
+    apiFetch<any>(`/api/ai/conversations/${conversationId}`, { token }),
+
+  sendAiMessage: (conversationId: string, content: string, token: string) =>
+    apiFetch<any>(`/api/ai/conversations/${conversationId}/messages`, {
+      method: "POST",
+      token,
+      body: JSON.stringify({ content }),
+    }),
+
+  deleteAiConversation: (conversationId: string, token: string) =>
+    apiFetch<void>(`/api/ai/conversations/${conversationId}`, { method: "DELETE", token }),
 
   // Portfolio
   getHoldings: (token: string) =>

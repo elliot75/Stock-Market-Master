@@ -1,0 +1,13 @@
+services:
+  api:
+    image: ghcr.io/elliot75/stock-market-master-api:${IMAGE_TAG:-latest}
+    pull_policy: always
+  web:
+    image: ghcr.io/elliot75/stock-market-master-web:${IMAGE_TAG:-latest}
+    pull_policy: always
+  worker:
+    image: ghcr.io/elliot75/stock-market-master-worker:${IMAGE_TAG:-latest}
+    pull_policy: always
+  migrate:
+    image: ghcr.io/elliot75/stock-market-master-api:${IMAGE_TAG:-latest}
+    pull_policy: always

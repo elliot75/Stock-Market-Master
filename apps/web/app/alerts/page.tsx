@@ -144,6 +144,25 @@ export default function AlertsPage() {
     }
   }
 
+  async function handleToggleChannel(channel: any) {
+    try {
+      await api.updateNotificationChannel(channel.id, !channel.isActive, token);
+      loadData(token);
+    } catch (err: any) {
+      alert(err.message || "更新渠道失敗");
+    }
+  }
+
+  async function handleDeleteChannel(channelId: string) {
+    if (!confirm("確定刪除此通知渠道？")) return;
+    try {
+      await api.deleteNotificationChannel(channelId, token);
+      loadData(token);
+    } catch (err: any) {
+      alert(err.message || "刪除渠道失敗");
+    }
+  }
+
   if (!token) {
     return (
       <div className="fade-in">
@@ -246,6 +265,11 @@ export default function AlertsPage() {
                       <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{new Date(e.triggeredAt).toLocaleString()}</span>
                     </div>
                     <div style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>{e.message}</div>
+                    {e.delivery && (
+                      <div style={{ marginTop: 4, fontSize: "0.72rem", color: e.delivery.status === "SENT" ? "var(--color-up)" : "var(--color-down)" }}>
+                        {e.delivery.channelType}：{e.delivery.status === "SENT" ? "已送達" : `送達失敗${e.delivery.errorMessage ? ` · ${e.delivery.errorMessage}` : ""}`}
+                      </div>
+                    )}
                   </div>
                   {!e.isRead && (
                     <button className="btn btn-sm btn-ghost" onClick={() => handleMarkRead(e.id)} style={{ alignSelf: "center", fontSize: "0.75rem" }}>
@@ -284,7 +308,7 @@ export default function AlertsPage() {
               {channelForm.type === "TELEGRAM" ? (
                 <>
                   <input
-                    placeholder="Bot Token"
+                    placeholder="Bot Token（已設定時可留白保留）"
                     value={channelForm.botToken}
                     onChange={(e) => setChannelForm({ ...channelForm, botToken: e.target.value })}
                     style={{ width: "100%", marginBottom: 8, padding: 8, background: "var(--bg-input)", border: "1px solid var(--border-primary)", borderRadius: 4, color: "var(--text-primary)" }}
@@ -299,7 +323,7 @@ export default function AlertsPage() {
               ) : (
                 <>
                   <input
-                    placeholder="Channel Access Token"
+                    placeholder="Channel Access Token（已設定時可留白保留）"
                     value={channelForm.channelAccessToken}
                     onChange={(e) => setChannelForm({ ...channelForm, channelAccessToken: e.target.value })}
                     style={{ width: "100%", marginBottom: 8, padding: 8, background: "var(--bg-input)", border: "1px solid var(--border-primary)", borderRadius: 4, color: "var(--text-primary)" }}
@@ -324,10 +348,16 @@ export default function AlertsPage() {
                       <tr key={channel.id}>
                         <td>
                           <div style={{ fontWeight: 600 }}>{channel.name}</div>
-                          <div style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>{channel.type}</div>
+                          <div style={{ color: "var(--text-muted)", fontSize: "0.78rem" }}>
+                            {channel.type} {channel.config?.chatId ? `· Chat ID: ${channel.config.chatId}` : ""}
+                            {channel.config?.botTokenConfigured || channel.config?.channelAccessTokenConfigured ? " · 憑證已設定" : ""}
+                          </div>
+                          {channel.lastTestedAt && <div style={{ color: "var(--text-muted)", fontSize: "0.72rem" }}>最近測試：{new Date(channel.lastTestedAt).toLocaleString()}</div>}
                         </td>
                         <td style={{ textAlign: "right" }}>
+                          <button className="btn btn-sm btn-ghost" onClick={() => handleToggleChannel(channel)}>{channel.isActive ? "停用" : "啟用"}</button>{" "}
                           <button className="btn btn-sm btn-outline" onClick={() => handleTestChannel(channel.id)}>測試</button>
+                          <button className="btn btn-sm btn-ghost" style={{ color: "var(--color-down)" }} onClick={() => handleDeleteChannel(channel.id)}>刪除</button>
                         </td>
                       </tr>
                     ))}

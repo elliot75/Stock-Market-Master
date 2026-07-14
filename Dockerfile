@@ -29,6 +29,7 @@ RUN turbo build --filter=${APP_NAME}
 FROM node:20-alpine AS runner
 ARG APP_NAME
 ENV APP_NAME=${APP_NAME}
+ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=builder /app/ .
 

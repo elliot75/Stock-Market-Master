@@ -10,6 +10,29 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d stock_market"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - APP_NAME=api
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://user:password@database:5432/stock_market
+    command: >
+      sh -c "npx prisma migrate deploy --schema packages/database/prisma/schema.prisma
+      && npm run script:encrypt-notifications -w api"
+    depends_on:
+      database:
+        condition: service_healthy
+    restart: "no"
 
   api:
     build: 
@@ -18,14 +41,15 @@ services:
       args:
         - APP_NAME=api
     restart: always
+    env_file:
+      - .env
     environment:
       DATABASE_URL: postgresql://user:password@database:5432/stock_market
-      JWT_SECRET: ${JWT_SECRET}
-      APP_URL: ${APP_URL}
     ports:
       - "3001:3001"
     depends_on:
-      - database
+      migrate:
+        condition: service_completed_successfully
 
   web:
     build:
@@ -33,12 +57,13 @@ services:
       dockerfile: Dockerfile
       args:
         - APP_NAME=web
-        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-}
     restart: always
     environment:
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
     depends_on:
-      - api
+      api:
+        condition: service_started
 
   worker:
     build:
@@ -47,10 +72,13 @@ services:
       args:
         - APP_NAME=worker
     restart: always
+    env_file:
+      - .env
     environment:
       DATABASE_URL: postgresql://user:password@database:5432/stock_market
     depends_on:
-      - database
+      migrate:
+        condition: service_completed_successfully
 
   caddy:
     image: caddy:2-alpine

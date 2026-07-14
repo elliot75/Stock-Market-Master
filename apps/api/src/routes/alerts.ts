@@ -161,6 +161,11 @@ export async function alertRoutes(app: FastifyInstance) {
               stock: { select: { name: true } },
             },
           },
+          deliveryAttempts: {
+            orderBy: { attemptedAt: "desc" },
+            take: 1,
+            select: { status: true, errorMessage: true, attemptedAt: true, channelType: true },
+          },
         },
       }),
     ]);
@@ -174,6 +179,14 @@ export async function alertRoutes(app: FastifyInstance) {
         message: e.message,
         isRead: e.isRead,
         triggeredAt: e.triggeredAt,
+        delivery: e.deliveryAttempts[0]
+          ? {
+              status: e.deliveryAttempts[0].status,
+              channelType: e.deliveryAttempts[0].channelType,
+              attemptedAt: e.deliveryAttempts[0].attemptedAt,
+              errorMessage: e.deliveryAttempts[0].errorMessage,
+            }
+          : null,
       })),
       meta: { total, limit, offset },
     };

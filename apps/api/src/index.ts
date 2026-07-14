@@ -2,6 +2,7 @@ import "dotenv/config";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import jwt from "@fastify/jwt";
+import { prisma } from "@repo/database";
 
 import { authRoutes } from "./routes/auth.js";
 import { stockRoutes } from "./routes/stocks.js";
@@ -12,6 +13,7 @@ import { screenerRoutes } from "./routes/screener.js";
 import { marketRoutes } from "./routes/market.js";
 import { notificationChannelRoutes } from "./routes/notificationChannels.js";
 import { portfolioRoutes } from "./routes/portfolio.js";
+import { aiRoutes } from "./routes/ai.js";
 
 const app = Fastify({
   logger: {
@@ -59,6 +61,15 @@ app.get("/api/health", async () => {
   return { status: "ok", timestamp: new Date().toISOString() };
 });
 
+app.get("/api/health/ready", async (_request, reply) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    return { status: "ready", database: "ok" };
+  } catch {
+    return reply.code(503).send({ status: "not_ready", database: "unavailable" });
+  }
+});
+
 // ─── Routes ───────────────────────────────────
 
 await app.register(authRoutes, { prefix: "/api/auth" });
@@ -70,6 +81,7 @@ await app.register(screenerRoutes, { prefix: "/api/screener" });
 await app.register(marketRoutes, { prefix: "/api/market" });
 await app.register(notificationChannelRoutes, { prefix: "/api/notification-channels" });
 await app.register(portfolioRoutes, { prefix: "/api/portfolio" });
+await app.register(aiRoutes, { prefix: "/api/ai" });
 
 // ─── Start ────────────────────────────────────
 

@@ -16,6 +16,7 @@ import {
 } from "../../lib/format";
 import KLineChart from "../../components/KLineChart";
 import ScoreGauge from "../../components/ScoreGauge";
+import AiAnalysisPanel from "../../components/AiAnalysisPanel";
 
 export default function StockPage({
   params,
@@ -513,6 +514,7 @@ export default function StockPage({
 
         {/* ─── Bottom: 關鍵價位 + 操作劇本 + 結論 ─── */}
         <div className="dashboard-footer">
+          <AiAnalysisPanel symbol={symbol} token={userToken} />
           {/* 關鍵價位 */}
           {keyLevels && keyLevels.resistance1 && (
             <div className="card" style={{ marginBottom: "var(--space-md)" }}>

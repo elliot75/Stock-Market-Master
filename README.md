@@ -55,6 +55,12 @@
 ### 環境變數
 請參考 `.env.example` 建立 `.env` 檔案，並填入資料庫連接字串（建議使用 Supabase）與相關 API Token。
 
+通知渠道與 AI 分析需要額外設定：
+
+- `APP_ENCRYPTION_KEY`：以 `openssl rand -base64 32` 產生；Telegram／LINE 憑證會以此加密保存。
+- AI：設定自訂 `LLM_BASE_URL`、`LLM_API_KEY`、`LLM_MODEL`，或設定 `OPENAI_*`、`XAI_*`、`GEMINI_*` 任一組。金鑰只存在伺服器端，使用者只會看到可用供應商與模型。
+- ChatGPT、Grok、Gemini 的消費型訂閱與開發者 API 計費可能分離；請使用各供應商的正式 API key。
+
 ### 安裝與啟動
 ```bash
 # 安裝依賴
@@ -63,6 +69,16 @@ npm install
 # 啟動開發模式 (包含 API, Web, Worker)
 npm run dev
 ```
+
+### Telegram 設定與測試
+
+1. 以 BotFather 建立 Bot，取得 Bot Token。
+2. 先在 Telegram 打開該 Bot 並傳送 `/start`，或將 Bot 加入目標群組。
+3. 在「提醒中心」填入 Bot Token 與 Chat ID 後儲存，再按「測試」。Token 已設定時重新儲存可留白，不會覆寫既有憑證。
+
+### AI 個股分析
+
+登入後，在個股頁選擇已啟用的 LLM provider，即可產生以本系統技術、籌碼、營收及財報資料為基礎的報告並繼續追問。報告依資料版本快取；對話僅自己可見，30 天未活動後自動清除。AI 結果僅供研究，不構成投資建議。
 
 ---
 
@@ -105,6 +121,22 @@ npm run script:seed-yahoo
 - **本地/自行部署**：使用 Docker 執行 `postgres:15-alpine`。
 - **初始化**：在根目錄執行 `npx prisma db push` 以同步資料表結構。
 
+新安裝請改用 migration：
+
+```bash
+npm run db:migrate:deploy -w @repo/database
+```
+
+既有資料庫請先完整備份，再執行一次 baseline 登記，之後即可安全套用增量 migration：
+
+```bash
+npm run db:baseline-existing -w @repo/database
+npm run db:migrate:deploy -w @repo/database
+npm run script:encrypt-notifications -w api
+```
+
+`db:baseline-existing` 會先檢查現有主要資料表；請只對本專案既有 schema 執行。不要用 `docker compose down -v`，它會移除 PostgreSQL volume 與所有資料。
+
 ### 2. 自行部署 (Git Clone)
 如果你想在自己的伺服器上手動執行：
 ```bash
@@ -118,11 +150,11 @@ npm run build
 
 # 3. 啟動服務 (需分別啟動或使用 PM2)
 # 啟動 API
-npm run start --filter=api
+npm run start -w api
 # 啟動 Web
-npm run start --filter=web
+npm run start -w web
 # 啟動 Worker
-npm run start --filter=worker
+npm run start -w worker
 ```
 
 ### 3. Docker 部署
@@ -131,7 +163,9 @@ npm run start --filter=worker
 # 啟動所有服務
 docker-compose up -d
 ```
-*註：部署前請確保 `.env` 檔案中的環境變數已正確設定。*
+*註：Compose 會先等待資料庫健康、執行 migration 及通知憑證加密轉換，才啟動 API 與 Worker。部署前請確保 `.env` 的 `APP_ENCRYPTION_KEY` 與所需 LLM／JWT 設定正確。*
+
+GitHub Actions 也會在 `main` 與版本標籤發布 API、Web、Worker images 到 GHCR；伺服器可使用 `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d` 取得已發布映像。
 
 ### 4. 雲端平台部署 (Vercel / Railway / Render)
 - **Web (前端)**：可部署於 Vercel，設定 `NEXT_PUBLIC_API_URL` 指向你的 API 地址。
@@ -146,7 +180,10 @@ docker-compose up -d
 - [x] Yahoo Finance 資料回補腳本
 - [x] 自動化指標計算系統
 - [x] 實時盤中價位對接
-- [ ] LINE / Telegram 通知整合
+- [x] LINE / Telegram 通知整合與發送紀錄
+- [x] 個股 AI 分析、追問與多供應商設定
+- [x] 盤中價位提醒（每 5 分鐘）
+- [x] Prisma migration、Docker migration service 與通知憑證加密
 
 ---
 *本系統僅供學術研究與個人使用，投資有風險，入市需謹慎。*
