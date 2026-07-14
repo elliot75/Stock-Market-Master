@@ -1,6 +1,7 @@
 services:
   database:
     image: postgres:15-alpine
+    restart: always
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
@@ -16,9 +17,11 @@ services:
       dockerfile: Dockerfile
       args:
         - APP_NAME=api
+    restart: always
     environment:
       DATABASE_URL: postgresql://user:password@database:5432/stock_market
-      JWT_SECRET: your-secret
+      JWT_SECRET: ${JWT_SECRET}
+      APP_URL: ${APP_URL}
     ports:
       - "3001:3001"
     depends_on:
@@ -30,10 +33,10 @@ services:
       dockerfile: Dockerfile
       args:
         - APP_NAME=web
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+    restart: always
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:3001
-    ports:
-      - "3000:3000"
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
     depends_on:
       - api
 
@@ -43,10 +46,22 @@ services:
       dockerfile: Dockerfile
       args:
         - APP_NAME=worker
+    restart: always
     environment:
       DATABASE_URL: postgresql://user:password@database:5432/stock_market
     depends_on:
       - database
+
+  caddy:
+    image: caddy:2-alpine
+    restart: always
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+    depends_on:
+      - web
+      - api
 
 volumes:
   postgres_data:

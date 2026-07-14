@@ -1,5 +1,6 @@
+import "dotenv/config";
 import { prisma } from "@repo/database";
-import { fetch } from "undici"; // Node 18+ 內建 fetch，但 package.json 中有 undici
+import { fetch } from "undici";
 
 /**
  * 獨立腳本：使用 Yahoo Finance 回填所有股票的歷史資料 (預設 1 年)
@@ -64,9 +65,9 @@ async function seedYahooHistory() {
         // Yahoo 可能會出現 null (國定假日或其他原因)
         if (quote.close[j] === null || quote.open[j] === null) continue;
 
-        // 轉換 timestamp 為本地 Date 物件 (Yahoo 回傳的是 UTC 秒數)
-        const dateObj = new Date(timestamps[j] * 1000);
-        dateObj.setHours(0, 0, 0, 0);
+        const d = new Date(timestamps[j] * 1000);
+        const dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}T00:00:00.000Z`;
+        const dateObj = new Date(dateStr);
 
         const open = Number(quote.open[j]);
         const high = Number(quote.high[j]);
