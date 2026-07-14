@@ -11,7 +11,7 @@ async function main() {
     SELECT table_name FROM information_schema.tables
     WHERE table_schema = 'public' AND table_name = ANY(${requiredTables})
   `;
-  const present = new Set(rows.map((row) => row.table_name));
+  const present = new Set(rows.map((row: { table_name: string }) => row.table_name));
   const missing = requiredTables.filter((table) => !present.has(table));
   if (missing.length) throw new Error(`現有資料庫不符合 baseline，缺少資料表：${missing.join(", ")}`);
   console.log("Baseline schema check passed.");
