@@ -45,6 +45,7 @@ services:
       - .env
     environment:
       DATABASE_URL: postgresql://user:password@database:5432/stock_market
+      NODE_OPTIONS: --dns-result-order=ipv4first --no-network-family-autoselection
     ports:
       - "3001:3001"
     depends_on:
@@ -76,6 +77,7 @@ services:
       - .env
     environment:
       DATABASE_URL: postgresql://user:password@database:5432/stock_market
+      NODE_OPTIONS: --dns-result-order=ipv4first --no-network-family-autoselection
     depends_on:
       migrate:
         condition: service_completed_successfully
